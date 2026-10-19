@@ -62,10 +62,20 @@
     .field label { font-size: 12px; font-weight: 700; }
     .field input { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 0; color: var(--ink); background: white; }
     .field input[type="number"] { max-width: 120px; font-family: var(--mono); }
+    .color-control { display: flex; align-items: center; gap: 9px; }
+    .color-control input { width: 52px; height: 42px; padding: 4px; border: 1px solid var(--line); border-radius: 0; background: white; }
+    .color-value { color: var(--muted); font: 11px var(--mono); text-transform: uppercase; }
     .field-hint { color: var(--muted); font-size: 12px; line-height: 1.4; }
     .primary { width: 100%; min-height: 44px; border: 0; color: white; background: var(--green); font-size: 13px; font-weight: 700; transition: background .16s ease, transform .16s ease; }
     .primary:hover:not(:disabled) { background: var(--green-dark); transform: translateY(-1px); }
     .primary:disabled { cursor: wait; opacity: .65; }
+    .action-row { display: flex; align-items: stretch; gap: 8px; }
+    .action-row .primary { flex: 1; width: auto; }
+    .config-toggle { min-width: 82px; }
+    .config-panel { display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); background: #f4f6f1; }
+    .config-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(95px, 130px); align-items: center; gap: 10px; }
+    .config-field label { font-size: 12px; font-weight: 600; }
+    .config-field input, .config-field select { width: 100%; min-width: 0; height: 36px; padding: 0 8px; border: 1px solid var(--line); border-radius: 0; color: var(--ink); background: white; }
     .status { min-height: 40px; margin: 14px 0 0; padding: 10px 11px; border-left: 3px solid var(--gold); color: var(--muted); background: #f3f4ed; font-size: 12px; line-height: 1.45; }
     .status[data-kind="error"] { border-color: var(--orange); color: #8c3927; background: #fff0e9; }
     .status[data-kind="success"] { border-color: var(--green); color: var(--green-dark); background: var(--mint); }
@@ -146,7 +156,19 @@
           <input id="marker-count" type="number" min="2" max="64" step="1" value="4">
           <span class="field-hint">Includes both corners. Use 2 to 64.</span>
         </div>
-        <button class="primary" id="generate" type="button">Generate border</button>
+        <div class="field">
+          <label for="marker-color">Marker color</label>
+          <div class="color-control"><input id="marker-color" type="color" value="#64ff69" aria-label="Choose marker color"><span class="color-value" id="color-value">#64FF69</span></div>
+        </div>
+        <div class="action-row">
+          <button class="small-button config-toggle" id="config-toggle" type="button" aria-expanded="false" aria-controls="config-panel">Config</button>
+          <button class="primary" id="generate" type="button">Generate border</button>
+        </div>
+        <div class="config-panel" id="config-panel" hidden>
+          <div class="config-field"><label for="chunk-delimiter">Chunk ID delimiter</label><select id="chunk-delimiter"><option value="space">Space</option><option value="comma">Comma</option><option value="newline">New line</option><option value="tab">Tab</option></select></div>
+          <div class="config-field"><label for="max-total-tiles">Maximum total tiles</label><input id="max-total-tiles" type="number" min="1" step="1" value="232"></div>
+          <div class="config-field"><label for="max-per-import">Maximum tiles per import</label><input id="max-per-import" type="number" min="1" max="255" step="1" value="127"></div>
+        </div>
         <p class="status" id="status" role="status" aria-live="polite">Ready. Enter a map code to begin.</p>
         <div class="block-tools" id="block-tools" hidden>
           <p class="section-kicker">Unlocked blocks</p>
@@ -164,14 +186,7 @@
           <div><p class="section-kicker" style="margin-bottom:8px">Output / TM2</p><h2>Import strings</h2></div>
           <span class="result-count" id="result-count">No markers yet</span>
         </div>
-        <div class="result-item">
-          <div class="result-label-row"><span class="result-label" id="first-label">First string</span><button class="copy-button" id="copy-first" type="button">Copy</button></div>
-          <textarea class="output" id="first-output" readonly aria-label="First import string" placeholder="Generated marker string appears here"></textarea>
-        </div>
-        <div class="result-item" id="second-result" hidden>
-          <div class="result-label-row"><span class="result-label" id="second-label">Second string</span><button class="copy-button" id="copy-second" type="button">Copy</button></div>
-          <textarea class="output" id="second-output" readonly aria-label="Second import string"></textarea>
-        </div>
+        <div id="outputs" aria-live="polite"></div>
         <div class="chunk-copy-row" id="chunk-copy-row"><button class="copy-button" id="copy-chunks" type="button" disabled>Copy chunk IDs</button></div>
       </div>
     </section>
@@ -182,10 +197,10 @@
     const status = $("#status");
     const mapCode = $("#map-code");
     const markerCount = $("#marker-count");
+    const markerColor = $("#marker-color");
     const generateButton = $("#generate");
-    const firstOutput = $("#first-output");
-    const secondOutput = $("#second-output");
-    const secondResult = $("#second-result");
+    const outputContainer = $("#outputs");
+    const configPanel = $("#config-panel");
     const copyChunksButton = $("#copy-chunks");
     const selectedBlocks = new Set(["19,23"]);
     const columns = Array.from({ length: 21 }, (_, index) => index + 12);
@@ -205,6 +220,17 @@
     let pyodidePromise;
     let chunkText = "";
     let painting = null;
+
+    $("#config-toggle").addEventListener("click", () => {
+      const opening = configPanel.hidden;
+      configPanel.hidden = !opening;
+      $("#config-toggle").setAttribute("aria-expanded", String(opening));
+      $("#config-toggle").textContent = opening ? "Close config" : "Config";
+    });
+
+    markerColor.addEventListener("input", () => {
+      $("#color-value").textContent = markerColor.value.toUpperCase();
+    });
 
     function showStatus(message, kind = "info") {
       status.textContent = message;
@@ -350,7 +376,7 @@
           showStatus("Loading the browser Python runtime. This only happens once.");
           const pyodide = await loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" });
           for (const file of ["border.py", "export.py", "web_core.py"]) {
-            const response = await fetch(new URL(file, location.href));
+            const response = await fetch(new URL(file, location.href), { cache: "no-store" });
             if (!response.ok) throw new Error(`Could not load ${file}.`);
             pyodide.FS.writeFile(`/${file}`, await response.text());
           }
@@ -399,11 +425,32 @@
     }
 
     function renderResult(result) {
-      firstOutput.value = result.first || result.error || "";
-      secondOutput.value = result.second || "";
-      $("#first-label").textContent = result.first_label || "First string";
-      $("#second-label").textContent = result.second_label || "Second string";
-      secondResult.hidden = !result.second;
+      const strings = result.strings || [result.first, result.second].filter(Boolean);
+      const labels = result.labels || [result.first_label, result.second_label].filter(Boolean);
+      const fragment = document.createDocumentFragment();
+      strings.forEach((text, index) => {
+        const item = document.createElement("div");
+        item.className = "result-item";
+        const row = document.createElement("div");
+        row.className = "result-label-row";
+        const label = document.createElement("span");
+        label.className = "result-label";
+        label.textContent = labels[index] || `String ${index + 1}`;
+        const copy = document.createElement("button");
+        copy.type = "button";
+        copy.className = "copy-button";
+        copy.textContent = "Copy";
+        copy.addEventListener("click", () => copyText(text, `Copied ${labels[index] || `string ${index + 1}`}.`));
+        const output = document.createElement("textarea");
+        output.className = "output";
+        output.readOnly = true;
+        output.setAttribute("aria-label", labels[index] || `Import string ${index + 1}`);
+        output.value = text;
+        row.append(label, copy);
+        item.append(row, output);
+        fragment.append(item);
+      });
+      outputContainer.replaceChildren(fragment);
       $("#result-count").textContent = result.error ? "Export limit" : `${result.tile_count} markers`;
       if (result.error) showStatus(result.error, "error");
       else showStatus(`Loaded ${result.tile_count} tiles.`, "success");
@@ -418,9 +465,28 @@
       return value;
     }
 
+    function validLimit(input, label, max = Infinity) {
+      const value = Number(input.value);
+      if (Number.isInteger(value) && value > max) {
+        showStatus(`${label} cannot exceed ${max}.`, "error");
+        input.focus();
+        return null;
+      }
+      if (!Number.isInteger(value) || value < 1 || value > max) {
+        showStatus(`Enter a positive whole number for ${label}.`, "error");
+        input.focus();
+        return null;
+      }
+      return value;
+    }
+
     async function generate() {
       const count = validCount();
       if (count === null) return;
+      const maxTotalTiles = validLimit($("#max-total-tiles"), "maximum total tiles");
+      if (maxTotalTiles === null) return;
+      const maxTilesPerImport = validLimit($("#max-per-import"), "maximum tiles per import", 255);
+      if (maxTilesPerImport === null) return;
       const name = mapCode.value.trim();
       if (activeMode === "map" && !name) {
         showStatus("Enter a map code.", "error");
@@ -432,13 +498,14 @@
         if (activeMode === "map") {
           showStatus("Loading unlocked chunks...");
           const ids = await fetchUnlockedChunks(name);
-          chunkText = await callPython("format_unlocked_chunks", [ids]);
+          const delimiter = { space: " ", comma: ",", newline: "\n", tab: "\t" }[$("#chunk-delimiter").value];
+          chunkText = await callPython("format_unlocked_chunks", [ids, delimiter]);
           copyChunksButton.disabled = !chunkText;
           showStatus("Tracing the border...");
-          result = await callPython("generate_chunks", [ids, count, name.toUpperCase()]);
+          result = await callPython("generate_chunks", [ids, count, name.toUpperCase(), markerColor.value, maxTotalTiles, maxTilesPerImport]);
         } else {
           const blocks = [...selectedBlocks].map((key) => key.split(",").map(Number));
-          result = await callPython("generate_blocks", [blocks, count, name.trim().toUpperCase() || "ENKLUMPMAN"]);
+          result = await callPython("generate_blocks", [blocks, count, name.trim().toUpperCase() || "ENKLUMPMAN", markerColor.value, maxTotalTiles, maxTilesPerImport]);
         }
         renderResult(result);
       } catch (error) {
@@ -472,8 +539,6 @@
         showStatus("Clipboard access was blocked by the browser.", "error");
       }
     }
-    $("#copy-first").addEventListener("click", () => copyText(firstOutput.value, "Copied marker string."));
-    $("#copy-second").addEventListener("click", () => copyText(secondOutput.value, "Copied marker string."));
     copyChunksButton.addEventListener("click", () => copyText(chunkText, "Copied chunk IDs."));
 
     renderBlockGrid();

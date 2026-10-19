@@ -55,11 +55,16 @@ Use this when your map already lives on the Chunk Picker site.
 
 1. Type your map code in **Map code** (for example `BQE`). Case does not matter.
 2. Leave **Markers per 64 tiles** at `4`, or change it — see [Marker count](#marker-count).
-3. Click **Generate**. It downloads your unlocked chunks, so give it a second.
-4. Click **Copy** under the first box, and paste it into your tile-marker app.
+3. Choose a **Marker color**, or keep the default green.
+4. Click **Generate**. It downloads your unlocked chunks, so give it a second.
+5. Click **Copy** under the first box, and paste it into your tile-marker app.
 
 Click **Copy chunk IDs** to copy the unlocked chunks as a space-separated list of IDs, such
 as `13850 13851`.
+
+Open **Config** to change the chunk ID delimiter (space, comma, new line, or tab), the
+maximum total marker tiles (default `232`), and the maximum tiles per import string
+(default `127`). Lower the per-import limit to split a large border into additional strings.
 
 If a second box fills in as well, paste that one too. Your border was too long for one
 string, so it was split in two.
@@ -74,7 +79,7 @@ just colour in the blocks you have.
 1. Tick **Enklumpman mode (150-tile blocks)**. A grid appears.
 2. Click the blocks you own. They turn green. Click again to clear one.
    Hold the mouse down and drag to paint a whole run at once.
-3. Click **Generate**, then **Copy**.
+3. Choose a **Marker color**, then click **Generate** and **Copy**.
 
 Things worth knowing about the grid:
 
@@ -101,9 +106,10 @@ This is how many markers get placed along each edge, counting both corners.
 - In map-code mode it is per 64-tile chunk edge. `4` gives a marker every 21 tiles.
 - In Enklumpman mode it is per 150-tile block edge. `4` gives a marker every 50 tiles.
 
-Higher means a more solid-looking line, but more markers. Your tile-marker app only holds
-**232 markers in total**, and each import string carries at most 127, which is why big maps
-come out as two strings.
+Higher means a more solid-looking line, but more markers. The default limits are **232
+markers in total** and **127 per import string**. Use **Config** to change them; larger
+exports are split into as many strings as needed. A single import string cannot exceed 255
+tiles because of the marker format.
 
 ## If something goes wrong
 

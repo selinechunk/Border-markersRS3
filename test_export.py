@@ -1,6 +1,7 @@
 import base64
 import unittest
 
+from decode import decode_string
 from export import encode_string, pack_tile
 
 
@@ -32,6 +33,47 @@ class EncodeStringTests(unittest.TestCase):
         packed, _ = read_leb(data, 7)
         self.assertEqual(packed, 15780148)
         self.assertEqual(pack_tile((50, 50, 36, 22)), 15780148)
+
+    def test_custom_color_is_encoded_as_opaque_rgba(self):
+        text = encode_string("purple", [(50, 50, 36, 22)], "#c864ff")
+        self.assertEqual(
+            decode_string(text).style,
+            bytes.fromhex("01c864ffff50cc548c0c14"),
+        )
+
+    def test_export_borders_uses_selected_color(self):
+        from export import export_borders
+
+        result = export_borders([12850], 2, "Purple", "#c864ff")
+        self.assertIsNone(result.error)
+        self.assertEqual(
+            decode_string(result.first).style,
+            bytes.fromhex("01c864ffff50cc548c0c14"),
+        )
+
+    def test_configurable_import_size_can_create_more_than_two_strings(self):
+        result = export_borders(
+            [12850], 59, "G", max_total_tiles=232, max_tiles_per_import=50
+        )
+        self.assertIsNone(result.error)
+        self.assertEqual(len(result.strings), 5)
+        self.assertEqual(result.labels, [
+            "Tiles 1–50",
+            "Tiles 51–100",
+            "Tiles 101–150",
+            "Tiles 151–200",
+            "Tiles 201–232",
+        ])
+        self.assertEqual(decode_string(result.strings[2]).name, "G3")
+
+    def test_configurable_total_limit_refuses_too_many_tiles(self):
+        result = export_borders([12850], 2, "G", max_total_tiles=3)
+        self.assertEqual(result.error, "That map is too big, sorry.")
+        self.assertEqual(result.tile_count, 4)
+
+    def test_import_limit_cannot_exceed_single_byte_tile_count(self):
+        with self.assertRaisesRegex(ValueError, "between 1 and 255"):
+            export_borders([12850], 2, "G", max_tiles_per_import=256)
 
     def test_east2_rebuilds(self):
         self.assertEqual(

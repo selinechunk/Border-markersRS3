@@ -43,6 +43,9 @@ class Widget:
     def grid(self, **_options):
         self.visible = True
 
+    def grid_remove(self):
+        self.visible = False
+
     def configure(self, **options):
         self.options.update(options)
 
@@ -71,6 +74,13 @@ class Entry(Widget):
     pass
 
 
+class OptionMenu(Widget):
+    def __init__(self, master, variable, *values, **options):
+        self.variable = variable
+        self.values = values
+        super().__init__(master, **options)
+
+
 class Button(Widget):
     def invoke(self):
         self.options["command"]()
@@ -81,6 +91,15 @@ class Checkbutton(Widget):
         variable = self.options["variable"]
         variable.set(not variable.get())
         self.options["command"]()
+
+
+class ColorChooser:
+    @staticmethod
+    def askcolor(**_options):
+        return None, None
+
+
+colorchooser = ColorChooser()
 
 
 class Text(Widget):

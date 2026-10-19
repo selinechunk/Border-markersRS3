@@ -1,12 +1,13 @@
 import base64
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from border import block_border_loops, border_loops
 
 Tile = tuple[int, int, int, int]
 SPLIT = 127
 MAX_TILES = 232
+MAX_IMPORT_TILES = 255
 
 
 @dataclass
@@ -17,7 +18,22 @@ class ExportResult:
     second_label: str
     error: str | None
     tile_count: int
+    strings: list[str] = field(default_factory=list)
+    labels: list[str] = field(default_factory=list)
 STYLE = bytes.fromhex("0164ff69ff50cc548c0c14")
+DEFAULT_COLOR = "#64ff69"
+
+
+def style_for_color(color: str) -> bytes:
+    if len(color) != 7 or color[0] != "#":
+        raise ValueError("Color must use #RRGGBB format.")
+    try:
+        rgb = bytes.fromhex(color[1:])
+    except ValueError as error:
+        raise ValueError("Color must use #RRGGBB format.") from error
+    if len(rgb) != 3:
+        raise ValueError("Color must use #RRGGBB format.")
+    return STYLE[:1] + rgb + b"\xff" + STYLE[5:]
 
 
 def interleave(a: int, b: int, nbits: int = 8) -> int:
@@ -47,7 +63,7 @@ def write_leb(n: int) -> bytes:
             return bytes(out)
 
 
-def encode_string(name: str, tiles: list[Tile]) -> str:
+def encode_string(name: str, tiles: list[Tile], color: str = DEFAULT_COLOR) -> str:
     ordered = sorted(tiles, key=pack_tile)
     name_bytes = name.encode()
     steps = b"".join(
@@ -60,7 +76,7 @@ def encode_string(name: str, tiles: list[Tile]) -> str:
         + bytes([len(ordered)])
         + write_leb(pack_tile(ordered[0]))
         + steps
-        + STYLE
+        + style_for_color(color)
         + bytes(len(ordered))
     )
     return "TM2" + base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
@@ -85,16 +101,27 @@ def _range_label(start: int, end: int) -> str:
     return f"Tiles {start}–{end}"
 
 
-def export_walk(walk: Callable[[int], list[Tile]], count: int, name: str) -> ExportResult:
+def export_walk(
+    walk: Callable[[int], list[Tile]],
+    count: int,
+    name: str,
+    color: str = DEFAULT_COLOR,
+    max_total_tiles: int = MAX_TILES,
+    max_tiles_per_import: int = SPLIT,
+) -> ExportResult:
     """Build the import strings for a border walk, easing the marker count if needed."""
+    if max_total_tiles < 1:
+        raise ValueError("Maximum total tiles must be a positive integer.")
+    if not 1 <= max_tiles_per_import <= MAX_IMPORT_TILES:
+        raise ValueError(f"Maximum tiles per import must be between 1 and {MAX_IMPORT_TILES}.")
     tiles = walk(count)
     n = len(tiles)
-    if n > MAX_TILES:
-        if count == 2 or len(walk(2)) > MAX_TILES:
+    if n > max_total_tiles:
+        if count == 2 or len(walk(2)) > max_total_tiles:
             return ExportResult("", "", "", "", "That map is too big, sorry.", n)
         suggested = 2
         for candidate in range(2, count):
-            if len(walk(candidate)) <= MAX_TILES:
+            if len(walk(candidate)) <= max_total_tiles:
                 suggested = candidate
         return ExportResult(
             "",
@@ -104,30 +131,63 @@ def export_walk(walk: Callable[[int], list[Tile]], count: int, name: str) -> Exp
             f"Too many tiles ({n}). Try a marker count of {suggested} or less.",
             n,
         )
-    first_tiles = tiles[:SPLIT]
-    second_tiles = tiles[SPLIT:]
-    first = encode_string(name, first_tiles)
-    if second_tiles:
-        return ExportResult(
-            first,
-            encode_string(name + "2", second_tiles),
-            _range_label(1, SPLIT),
-            _range_label(SPLIT + 1, n),
-            None,
-            n,
-        )
-    return ExportResult(first, "", _range_label(1, n), "", None, n)
+    strings = []
+    labels = []
+    for offset in range(0, n, max_tiles_per_import):
+        part_number = len(strings) + 1
+        part_name = name if part_number == 1 else f"{name}{part_number}"
+        end = min(offset + max_tiles_per_import, n)
+        strings.append(encode_string(part_name, tiles[offset:end], color))
+        labels.append(_range_label(offset + 1, end))
+    first = strings[0]
+    second = strings[1] if len(strings) > 1 else ""
+    first_label = labels[0]
+    second_label = labels[1] if len(labels) > 1 else ""
+    return ExportResult(
+        first,
+        second,
+        first_label,
+        second_label,
+        None,
+        n,
+        strings,
+        labels,
+    )
 
 
-def export_borders(chunk_ids: Iterable[int], count: int, name: str) -> ExportResult:
+def export_borders(
+    chunk_ids: Iterable[int],
+    count: int,
+    name: str,
+    color: str = DEFAULT_COLOR,
+    max_total_tiles: int = MAX_TILES,
+    max_tiles_per_import: int = SPLIT,
+) -> ExportResult:
     chunk_list = list(chunk_ids)
-    return export_walk(lambda c: unique_walk(chunk_list, c), count, name)
+    return export_walk(
+        lambda c: unique_walk(chunk_list, c),
+        count,
+        name,
+        color,
+        max_total_tiles,
+        max_tiles_per_import,
+    )
 
 
 def export_block_borders(
-    blocks: Iterable[tuple[int, int]], count: int, name: str
+    blocks: Iterable[tuple[int, int]],
+    count: int,
+    name: str,
+    color: str = DEFAULT_COLOR,
+    max_total_tiles: int = MAX_TILES,
+    max_tiles_per_import: int = SPLIT,
 ) -> ExportResult:
     block_list = list(blocks)
     return export_walk(
-        lambda c: unique_tiles(block_border_loops(block_list, c)), count, name
+        lambda c: unique_tiles(block_border_loops(block_list, c)),
+        count,
+        name,
+        color,
+        max_total_tiles,
+        max_tiles_per_import,
     )

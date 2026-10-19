@@ -5,6 +5,7 @@ import unittest.mock
 import app
 import faketk
 from border import BLOCKS, START_BLOCK, block_border_loops, format_block_borders, marker_positions
+from decode import decode_string
 from export import export_block_borders
 from web_core import format_unlocked_chunks as format_web_unlocked_chunks
 
@@ -109,13 +110,23 @@ class Window:
         self.root = faketk.instances[-1]
         entries = self.root.of_type(faketk.Entry)
         labels = self.root.of_type(faketk.Label)
-        self.code = entries[0].options["textvariable"]
-        self.count = entries[1].options["textvariable"]
-        self.blocks = entries[2].options["textvariable"]
-        self.code_label = labels[0].options["textvariable"]
-        self.count_label = labels[1].options["textvariable"]
-        self.status = labels[2].options["textvariable"]
-        self.hover = labels[5].options["textvariable"]
+        entry_vars = [entry.options["textvariable"] for entry in entries]
+        label_vars = [label.options["textvariable"] for label in labels if "textvariable" in label.options]
+        self.code = next(variable for variable in entry_vars if variable.get() == "")
+        self.count = next(variable for variable in entry_vars if variable.get() == "4")
+        self.blocks = next(variable for variable in entry_vars if variable.get() == "19,23")
+        self.max_total = next(variable for variable in entry_vars if variable.get() == "232")
+        self.max_per_import = next(variable for variable in entry_vars if variable.get() == "127")
+        self.code_label = next(variable for variable in label_vars if variable.get() == "Map code")
+        self.count_label = next(variable for variable in label_vars if variable.get() == "Markers per 64 tiles")
+        self.status = next(variable for variable in label_vars if variable.get() == "")
+        self.hover = next(variable for variable in label_vars if variable.get() == "Click or drag to mark the blocks you have.")
+        self.color = next(variable for variable in label_vars if variable.get() == "#64ff69")
+        self.delimiter = self.root.of_type(faketk.OptionMenu)[0].variable
+        self.config_panel = next(
+            widget for widget in self.root.of_type(faketk.Frame)
+            if getattr(widget, "_config_panel", False)
+        )
         self.boxes = self.root.of_type(faketk.Text)
         self.canvas = self.root.of_type(faketk.Canvas)[0]
         self.check = self.root.of_type(faketk.Checkbutton)[0]
@@ -141,6 +152,15 @@ class Window:
 
 
 class WindowTests(unittest.TestCase):
+    def test_config_button_toggles_settings(self):
+        window = Window()
+        self.assertFalse(window.config_panel.visible)
+        window.root.button("Config").invoke()
+        self.assertTrue(window.config_panel.visible)
+        self.assertEqual(window.delimiter.get(), "Space")
+        self.assertEqual(window.max_total.get(), "232")
+        self.assertEqual(window.max_per_import.get(), "127")
+
     def test_grid_is_hidden_until_the_mode_is_on(self):
         window = Window()
         self.assertFalse(window.grid_frame.visible)
@@ -222,6 +242,20 @@ class WindowTests(unittest.TestCase):
         self.assertTrue(window.boxes[0].content.startswith("TM2"))
         self.assertEqual(window.boxes[1].content, "")
 
+    def test_selected_color_is_used_for_generated_markers(self):
+        window = Window()
+        with unittest.mock.patch.object(
+            faketk.colorchooser,
+            "askcolor",
+            return_value=((200, 100, 255), "#c864ff"),
+        ):
+            window.root.button("Choose color").invoke()
+        self.assertEqual(window.color.get(), "#c864ff")
+        window.check.toggle()
+        window.root.button("Generate").invoke()
+        decoded = decode_string(window.boxes[0].content)
+        self.assertEqual(decoded.style, bytes.fromhex("01c864ffff50cc548c0c14"))
+
     def test_generate_needs_no_map_code_but_uses_it_as_a_name(self):
         window = Window()
         window.check.toggle()
@@ -277,6 +311,64 @@ class WindowTests(unittest.TestCase):
         self.assertEqual(window.root.clipboard, "12594 12850")
         self.assertEqual(window.status.get(), "Copied chunk IDs.")
         self.assertEqual(format_web_unlocked_chunks([12850, 12594]), "12594 12850")
+
+    def test_chunk_id_delimiter_is_configurable(self):
+        window = Window()
+        window.delimiter.set("Comma")
+
+        class ImmediateThread:
+            def __init__(self, target, daemon):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        with unittest.mock.patch("app.fetch_unlocked_ids", return_value=[12850, 12594]):
+            with unittest.mock.patch("app.threading.Thread", ImmediateThread):
+                window.code.set("BQE")
+                window.root.button("Generate").invoke()
+
+        window.root.button("Copy chunk IDs").invoke()
+        self.assertEqual(window.root.clipboard, "12594,12850")
+
+    def test_desktop_renders_more_than_two_import_strings(self):
+        window = Window()
+        window.count.set("59")
+        window.max_per_import.set("50")
+
+        class ImmediateThread:
+            def __init__(self, target, daemon):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        with unittest.mock.patch("app.fetch_unlocked_ids", return_value=[12850]):
+            with unittest.mock.patch("app.threading.Thread", ImmediateThread):
+                window.code.set("BQE")
+                window.root.button("Generate").invoke()
+
+        outputs = window.root.of_type(faketk.Text)
+        self.assertEqual(len(outputs), 5)
+        self.assertTrue(all(output.content.startswith("TM2") for output in outputs))
+
+    def test_configured_total_tile_limit_is_applied(self):
+        window = Window()
+        window.max_total.set("1")
+
+        class ImmediateThread:
+            def __init__(self, target, daemon):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        with unittest.mock.patch("app.fetch_unlocked_ids", return_value=[12850]):
+            with unittest.mock.patch("app.threading.Thread", ImmediateThread):
+                window.code.set("BQE")
+                window.root.button("Generate").invoke()
+
+        self.assertEqual(window.status.get(), "That map is too big, sorry.")
 
 
 if __name__ == "__main__":

@@ -8,7 +8,14 @@ import urllib.parse
 import urllib.request
 
 from border import BLOCKS, START_BLOCK
-from export import export_block_borders, export_borders
+from export import (
+    DEFAULT_COLOR,
+    MAX_IMPORT_TILES,
+    MAX_TILES,
+    SPLIT,
+    export_block_borders,
+    export_borders,
+)
 
 
 MAP_URL = "https://chunkpickerrs3.firebaseio.com/maps/{code}.json?shallow=true"
@@ -20,6 +27,8 @@ BLOCK_X_RANGE = range(12, 33)
 BLOCK_Y_RANGE = range(9, 31)
 ENKLUMPMAN_NAME = "ENKLUMPMAN"
 BLOCK_PAIR = re.compile(r"(-?\d+)\s*,\s*(-?\d+)")
+DELIMITER_OPTIONS = ("Space", "Comma", "New line", "Tab")
+DELIMITERS = {"Space": " ", "Comma": ",", "New line": "\n", "Tab": "\t"}
 
 # Orientation only: a dot per landmark so the empty grid is readable.
 LANDMARKS = (
@@ -141,12 +150,13 @@ def fetch_unlocked_ids(code: str) -> list[int]:
     return sorted(ids)
 
 
-def format_unlocked_chunks(chunk_ids: list[int]) -> str:
-    return " ".join(str(chunk_id) for chunk_id in sorted(set(chunk_ids)))
+def format_unlocked_chunks(chunk_ids: list[int], delimiter: str = " ") -> str:
+    return delimiter.join(str(chunk_id) for chunk_id in sorted(set(chunk_ids)))
 
 
 def main() -> None:
     import tkinter as tk
+    from tkinter import colorchooser
 
     root = tk.Tk()
     root.title("Border markers")
@@ -157,6 +167,10 @@ def main() -> None:
     enklumpman_var = tk.BooleanVar(value=False)
     code_label_var = tk.StringVar(value="Map code")
     count_label_var = tk.StringVar(value="Markers per 64 tiles")
+    color_var = tk.StringVar(value=DEFAULT_COLOR)
+    delimiter_var = tk.StringVar(value="Space")
+    max_total_var = tk.StringVar(value=str(MAX_TILES))
+    max_per_import_var = tk.StringVar(value=str(SPLIT))
 
     form = tk.Frame(root, padx=12, pady=12)
     form.pack(fill="x")
@@ -169,9 +183,54 @@ def main() -> None:
     tk.Label(form, textvariable=count_label_var).grid(row=2, column=0, sticky="w", pady=(8, 0))
     tk.Entry(form, textvariable=count_var, width=20).grid(row=2, column=1, padx=(8, 0), pady=(8, 0), sticky="w")
 
+    tk.Label(form, text="Marker color").grid(row=3, column=0, sticky="w", pady=(8, 0))
+    color_controls = tk.Frame(form)
+    color_controls.grid(row=3, column=1, padx=(8, 0), pady=(8, 0), sticky="w")
+    color_swatch = tk.Label(
+        color_controls, textvariable=color_var, background=DEFAULT_COLOR, width=10
+    )
+    color_swatch.pack(side="left")
+    choose_color = tk.Button(color_controls, text="Choose color")
+    choose_color.pack(side="left", padx=(6, 0))
+
+    config_button = tk.Button(form, text="Config")
+    config_button.grid(row=4, column=0, sticky="w", pady=(12, 0))
     generate = tk.Button(form, text="Generate")
-    generate.grid(row=3, column=0, columnspan=2, sticky="w", pady=(12, 0))
-    tk.Label(form, textvariable=status_var, anchor="w").grid(row=4, column=0, columnspan=2, sticky="we", pady=(8, 0))
+    generate.grid(row=4, column=1, sticky="e", pady=(12, 0))
+
+    config_panel = tk.Frame(form, padx=8, pady=8)
+    config_panel._config_panel = True
+    config_panel.grid(row=5, column=0, columnspan=2, sticky="we", pady=(8, 0))
+    tk.Label(config_panel, text="Chunk ID delimiter").grid(row=0, column=0, sticky="w")
+    tk.OptionMenu(config_panel, delimiter_var, *DELIMITER_OPTIONS).grid(
+        row=0, column=1, sticky="w"
+    )
+    tk.Label(config_panel, text="Maximum total tiles").grid(row=1, column=0, sticky="w")
+    tk.Entry(config_panel, textvariable=max_total_var, width=12).grid(
+        row=1, column=1, sticky="w"
+    )
+    tk.Label(config_panel, text="Maximum tiles per import").grid(
+        row=2, column=0, sticky="w"
+    )
+    tk.Entry(config_panel, textvariable=max_per_import_var, width=12).grid(
+        row=2, column=1, sticky="w"
+    )
+    config_panel.grid_remove()
+    config_open = {"value": False}
+
+    def toggle_config() -> None:
+        config_open["value"] = not config_open["value"]
+        if config_open["value"]:
+            config_panel.grid()
+            config_button.configure(text="Close config")
+        else:
+            config_panel.grid_remove()
+            config_button.configure(text="Config")
+
+    config_button.configure(command=toggle_config)
+    tk.Label(form, textvariable=status_var, anchor="w").grid(
+        row=6, column=0, columnspan=2, sticky="we", pady=(8, 0)
+    )
 
     first_label_var = tk.StringVar()
     second_label_var = tk.StringVar()
@@ -188,9 +247,12 @@ def main() -> None:
     second_box.pack(fill="both", expand=True)
     copy_second = tk.Button(strings, text="Copy")
     copy_second.pack(anchor="w", pady=(4, 12))
+    additional_outputs = tk.Frame(strings)
+    additional_outputs.pack(fill="x", expand=True)
+    extra_output_items = []
     copy_chunks = tk.Button(strings, text="Copy chunk IDs")
     copy_chunks.pack(anchor="w", pady=(4, 12))
-    unlocked_chunks = {"text": ""}
+    unlocked_chunks = {"ids": []}
 
     CELL = 24
     LOCKED_FILL = "#2f3136"
@@ -345,32 +407,61 @@ def main() -> None:
 
     enklumpman_check.configure(command=on_mode_change)
 
+    def on_choose_color() -> None:
+        _rgb, selected = colorchooser.askcolor(color=color_var.get(), title="Marker color")
+        if selected:
+            color_var.set(selected.lower())
+            color_swatch.configure(background=selected)
+
+    choose_color.configure(command=on_choose_color)
+
     def set_box(box, text: str) -> None:
         box.configure(state="normal")
         box.delete("1.0", "end")
         box.insert("1.0", text)
         box.configure(state="disabled")
 
+    def render_outputs(result) -> None:
+        strings = result.strings or [value for value in (result.first, result.second) if value]
+        labels = result.labels or [value for value in (result.first_label, result.second_label) if value]
+        set_box(first_box, strings[0] if strings else result.error or "")
+        first_label_var.set(labels[0] if labels else "")
+        set_box(second_box, strings[1] if len(strings) > 1 else "")
+        second_label_var.set(labels[1] if len(labels) > 1 else "")
+
+        while len(extra_output_items) < max(0, len(strings) - 2):
+            item = tk.Frame(additional_outputs)
+            label_var = tk.StringVar()
+            tk.Label(item, textvariable=label_var, anchor="w").pack(fill="x")
+            box = tk.Text(item, width=40, height=6, wrap="char", state="disabled")
+            box.pack(fill="both", expand=True)
+            copy_button = tk.Button(item, text="Copy")
+            copy_button.configure(command=lambda output=box: on_copy(output))
+            copy_button.pack(anchor="w", pady=(4, 12))
+            extra_output_items.append((item, label_var, box))
+
+        for index, (item, label_var, box) in enumerate(extra_output_items, start=2):
+            if index < len(strings):
+                item.pack(fill="x", expand=True)
+                label_var.set(labels[index])
+                set_box(box, strings[index])
+            else:
+                item.pack_forget()
+
     def box_text(box) -> str:
         return box.get("1.0", "end-1c")
 
-    def finish_ok(result, chunk_text: str | None = None) -> None:
+    def finish_ok(result, chunk_text: list[int] | None = None) -> None:
         if chunk_text is not None:
-            unlocked_chunks["text"] = chunk_text
-        set_box(first_box, result.first)
-        set_box(second_box, result.second)
-        first_label_var.set(result.first_label)
-        second_label_var.set(result.second_label)
+            unlocked_chunks["ids"] = chunk_text
+        render_outputs(result)
         status_var.set(f"Loaded {result.tile_count} tiles.")
         generate.configure(state="normal")
 
-    def finish_limit(result, chunk_text: str | None = None) -> None:
+    def finish_limit(result, chunk_text: list[int] | None = None) -> None:
         if chunk_text is not None:
-            unlocked_chunks["text"] = chunk_text
-        set_box(first_box, result.error or "")
-        set_box(second_box, "")
-        first_label_var.set("")
-        second_label_var.set("")
+            unlocked_chunks["ids"] = chunk_text
+        render_outputs(result)
         status_var.set(result.error or "")
         generate.configure(state="normal")
 
@@ -386,9 +477,33 @@ def main() -> None:
         if error:
             status_var.set(error)
             return
+        settings = []
+        for variable, label in (
+            (max_total_var, "maximum total tiles"),
+            (max_per_import_var, "maximum tiles per import"),
+        ):
+            text = variable.get().strip()
+            if not text.isdecimal() or int(text) < 1:
+                status_var.set(f"Enter a positive whole number for {label}.")
+                return
+            settings.append(int(text))
+        max_total_tiles, max_tiles_per_import = settings
+        if max_tiles_per_import > MAX_IMPORT_TILES:
+            status_var.set(
+                f"Maximum tiles per import cannot exceed {MAX_IMPORT_TILES}."
+            )
+            return
+        color = color_var.get()
         if block_mode:
             name = code.strip().upper() or ENKLUMPMAN_NAME
-            result = export_block_borders(sorted(selected), int(count_text.strip()), name)
+            result = export_block_borders(
+                sorted(selected),
+                int(count_text.strip()),
+                name,
+                color,
+                max_total_tiles,
+                max_tiles_per_import,
+            )
             if result.error:
                 finish_limit(result)
             else:
@@ -400,8 +515,15 @@ def main() -> None:
         def work() -> None:
             try:
                 ids = fetch_unlocked_ids(trimmed.lower())
-                chunk_text = format_unlocked_chunks(ids)
-                result = export_borders(ids, int(count_text.strip()), trimmed.upper())
+                chunk_text = ids
+                result = export_borders(
+                    ids,
+                    int(count_text.strip()),
+                    trimmed.upper(),
+                    color,
+                    max_total_tiles,
+                    max_tiles_per_import,
+                )
             except MapNotFound:
                 root.after(0, lambda: finish_err("No map found for that code."))
                 return
@@ -435,7 +557,9 @@ def main() -> None:
         if enklumpman_var.get():
             status_var.set("Chunk list is not available in Enklumpman mode.")
             return
-        text = unlocked_chunks["text"]
+        text = format_unlocked_chunks(
+            unlocked_chunks["ids"], DELIMITERS[delimiter_var.get()]
+        )
         if text == "":
             status_var.set("Nothing to copy.")
             return
