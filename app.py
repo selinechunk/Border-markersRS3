@@ -7,7 +7,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from border import BLOCKS, START_BLOCK, chunk_id_to_grid
+from border import BLOCKS, START_BLOCK
 from export import export_block_borders, export_borders
 
 
@@ -142,11 +142,7 @@ def fetch_unlocked_ids(code: str) -> list[int]:
 
 
 def format_unlocked_chunks(chunk_ids: list[int]) -> str:
-    grids = sorted(
-        {chunk_id_to_grid(chunk_id) for chunk_id in chunk_ids},
-        key=lambda grid: (-grid[1], grid[0]),
-    )
-    return " ".join(f"{grid_x},{grid_y}" for grid_x, grid_y in grids)
+    return " ".join(str(chunk_id) for chunk_id in sorted(set(chunk_ids)))
 
 
 def main() -> None:
@@ -192,7 +188,7 @@ def main() -> None:
     second_box.pack(fill="both", expand=True)
     copy_second = tk.Button(strings, text="Copy")
     copy_second.pack(anchor="w", pady=(4, 12))
-    copy_chunks = tk.Button(strings, text="Copy chunks")
+    copy_chunks = tk.Button(strings, text="Copy chunk IDs")
     copy_chunks.pack(anchor="w", pady=(4, 12))
     unlocked_chunks = {"text": ""}
 
@@ -445,7 +441,7 @@ def main() -> None:
             return
         root.clipboard_clear()
         root.clipboard_append(text)
-        status_var.set("Copied unlocked chunks.")
+        status_var.set("Copied chunk IDs.")
 
     generate.configure(command=on_generate)
     copy_first.configure(command=lambda: on_copy(first_box))

@@ -6,6 +6,7 @@ import app
 import faketk
 from border import BLOCKS, START_BLOCK, block_border_loops, format_block_borders, marker_positions
 from export import export_block_borders
+from web_core import format_unlocked_chunks as format_web_unlocked_chunks
 
 CELL = 24
 
@@ -257,7 +258,7 @@ class WindowTests(unittest.TestCase):
         window.root.button("Generate").invoke()
         self.assertEqual(window.status.get(), "Enter a map code.")
 
-    def test_copy_chunks_copies_all_unlocked_coordinates(self):
+    def test_copy_chunks_copies_all_unlocked_ids(self):
         window = Window()
 
         class ImmediateThread:
@@ -272,9 +273,10 @@ class WindowTests(unittest.TestCase):
                 window.code.set("BQE")
                 window.root.button("Generate").invoke()
 
-        window.root.button("Copy chunks").invoke()
-        self.assertEqual(window.root.clipboard, "49,50 50,50")
-        self.assertEqual(window.status.get(), "Copied unlocked chunks.")
+        window.root.button("Copy chunk IDs").invoke()
+        self.assertEqual(window.root.clipboard, "12594 12850")
+        self.assertEqual(window.status.get(), "Copied chunk IDs.")
+        self.assertEqual(format_web_unlocked_chunks([12850, 12594]), "12594 12850")
 
 
 if __name__ == "__main__":

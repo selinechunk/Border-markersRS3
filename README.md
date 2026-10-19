@@ -16,6 +16,11 @@ The first launch takes a few seconds while it unpacks itself. Later launches are
 
 > Windows may warn you that it is from an unknown publisher, because the file is not code
 > signed. Choose **More info**, then **Run anyway**.
+You can also use the browser version at the repository's GitHub Pages URL. It runs the
+existing border and export code locally through Pyodide, and fetches map data from Chunk
+Picker. The first generation downloads the Python runtime, so an internet connection is
+needed. The Pages workflow deploys from the repository's default branch; enable **GitHub
+Actions** as the Pages source in repository settings if it is not already selected.
 
 <details>
 <summary>Running from source instead, or on Mac or Linux</summary>
@@ -52,6 +57,9 @@ Use this when your map already lives on the Chunk Picker site.
 2. Leave **Markers per 64 tiles** at `4`, or change it — see [Marker count](#marker-count).
 3. Click **Generate**. It downloads your unlocked chunks, so give it a second.
 4. Click **Copy** under the first box, and paste it into your tile-marker app.
+
+Click **Copy chunk IDs** to copy the unlocked chunks as a space-separated list of IDs, such
+as `13850 13851`.
 
 If a second box fills in as well, paste that one too. Your border was too long for one
 string, so it was split in two.
