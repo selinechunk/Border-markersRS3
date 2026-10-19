@@ -10,6 +10,7 @@ import urllib.request
 from border import BLOCKS, START_BLOCK
 from export import (
     DEFAULT_COLOR,
+    DEFAULT_FILL_COLOR,
     MAX_IMPORT_TILES,
     MAX_TILES,
     SPLIT,
@@ -168,6 +169,7 @@ def main() -> None:
     code_label_var = tk.StringVar(value="Map code")
     count_label_var = tk.StringVar(value="Markers per 64 tiles")
     color_var = tk.StringVar(value=DEFAULT_COLOR)
+    fill_color_var = tk.StringVar(value=DEFAULT_FILL_COLOR)
     delimiter_var = tk.StringVar(value="Space")
     max_total_var = tk.StringVar(value=str(MAX_TILES))
     max_per_import_var = tk.StringVar(value=str(SPLIT))
@@ -193,14 +195,27 @@ def main() -> None:
     choose_color = tk.Button(color_controls, text="Choose color")
     choose_color.pack(side="left", padx=(6, 0))
 
+    tk.Label(form, text="Fill color").grid(row=4, column=0, sticky="w", pady=(8, 0))
+    fill_color_controls = tk.Frame(form)
+    fill_color_controls.grid(row=4, column=1, padx=(8, 0), pady=(8, 0), sticky="w")
+    fill_color_swatch = tk.Label(
+        fill_color_controls,
+        textvariable=fill_color_var,
+        background=DEFAULT_FILL_COLOR,
+        width=10,
+    )
+    fill_color_swatch.pack(side="left")
+    choose_fill_color = tk.Button(fill_color_controls, text="Choose fill")
+    choose_fill_color.pack(side="left", padx=(6, 0))
+
     config_button = tk.Button(form, text="Config")
-    config_button.grid(row=4, column=0, sticky="w", pady=(12, 0))
+    config_button.grid(row=5, column=0, sticky="w", pady=(12, 0))
     generate = tk.Button(form, text="Generate")
-    generate.grid(row=4, column=1, sticky="e", pady=(12, 0))
+    generate.grid(row=5, column=1, sticky="e", pady=(12, 0))
 
     config_panel = tk.Frame(form, padx=8, pady=8)
     config_panel._config_panel = True
-    config_panel.grid(row=5, column=0, columnspan=2, sticky="we", pady=(8, 0))
+    config_panel.grid(row=6, column=0, columnspan=2, sticky="we", pady=(8, 0))
     tk.Label(config_panel, text="Chunk ID delimiter").grid(row=0, column=0, sticky="w")
     tk.OptionMenu(config_panel, delimiter_var, *DELIMITER_OPTIONS).grid(
         row=0, column=1, sticky="w"
@@ -229,7 +244,7 @@ def main() -> None:
 
     config_button.configure(command=toggle_config)
     tk.Label(form, textvariable=status_var, anchor="w").grid(
-        row=6, column=0, columnspan=2, sticky="we", pady=(8, 0)
+        row=7, column=0, columnspan=2, sticky="we", pady=(8, 0)
     )
 
     first_label_var = tk.StringVar()
@@ -407,13 +422,18 @@ def main() -> None:
 
     enklumpman_check.configure(command=on_mode_change)
 
-    def on_choose_color() -> None:
-        _rgb, selected = colorchooser.askcolor(color=color_var.get(), title="Marker color")
+    def on_choose_color(variable, swatch, title: str) -> None:
+        _rgb, selected = colorchooser.askcolor(color=variable.get(), title=title)
         if selected:
-            color_var.set(selected.lower())
-            color_swatch.configure(background=selected)
+            variable.set(selected.lower())
+            swatch.configure(background=selected)
 
-    choose_color.configure(command=on_choose_color)
+    choose_color.configure(
+        command=lambda: on_choose_color(color_var, color_swatch, "Marker color")
+    )
+    choose_fill_color.configure(
+        command=lambda: on_choose_color(fill_color_var, fill_color_swatch, "Fill color")
+    )
 
     def set_box(box, text: str) -> None:
         box.configure(state="normal")
@@ -494,6 +514,7 @@ def main() -> None:
             )
             return
         color = color_var.get()
+        fill_color = fill_color_var.get()
         if block_mode:
             name = code.strip().upper() or ENKLUMPMAN_NAME
             result = export_block_borders(
@@ -503,6 +524,7 @@ def main() -> None:
                 color,
                 max_total_tiles,
                 max_tiles_per_import,
+                fill_color,
             )
             if result.error:
                 finish_limit(result)
@@ -523,6 +545,7 @@ def main() -> None:
                     color,
                     max_total_tiles,
                     max_tiles_per_import,
+                    fill_color,
                 )
             except MapNotFound:
                 root.after(0, lambda: finish_err("No map found for that code."))

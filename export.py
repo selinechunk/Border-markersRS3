@@ -22,9 +22,10 @@ class ExportResult:
     labels: list[str] = field(default_factory=list)
 STYLE = bytes.fromhex("0164ff69ff50cc548c0c14")
 DEFAULT_COLOR = "#64ff69"
+DEFAULT_FILL_COLOR = "#50cc54"
 
 
-def style_for_color(color: str) -> bytes:
+def _rgb_from_color(color: str) -> bytes:
     if len(color) != 7 or color[0] != "#":
         raise ValueError("Color must use #RRGGBB format.")
     try:
@@ -33,7 +34,18 @@ def style_for_color(color: str) -> bytes:
         raise ValueError("Color must use #RRGGBB format.") from error
     if len(rgb) != 3:
         raise ValueError("Color must use #RRGGBB format.")
-    return STYLE[:1] + rgb + b"\xff" + STYLE[5:]
+
+    return rgb
+
+
+def style_for_color(color: str, fill_color: str | None = None) -> bytes:
+    rgb = _rgb_from_color(color)
+    fill_rgb = (
+        bytes(channel * 4 // 5 for channel in rgb)
+        if fill_color is None
+        else _rgb_from_color(fill_color)
+    )
+    return STYLE[:1] + rgb + b"\xff" + fill_rgb + STYLE[8:]
 
 
 def interleave(a: int, b: int, nbits: int = 8) -> int:
@@ -63,7 +75,12 @@ def write_leb(n: int) -> bytes:
             return bytes(out)
 
 
-def encode_string(name: str, tiles: list[Tile], color: str = DEFAULT_COLOR) -> str:
+def encode_string(
+    name: str,
+    tiles: list[Tile],
+    color: str = DEFAULT_COLOR,
+    fill_color: str | None = None,
+) -> str:
     ordered = sorted(tiles, key=pack_tile)
     name_bytes = name.encode()
     steps = b"".join(
@@ -76,7 +93,7 @@ def encode_string(name: str, tiles: list[Tile], color: str = DEFAULT_COLOR) -> s
         + bytes([len(ordered)])
         + write_leb(pack_tile(ordered[0]))
         + steps
-        + style_for_color(color)
+        + style_for_color(color, fill_color)
         + bytes(len(ordered))
     )
     return "TM2" + base64.urlsafe_b64encode(payload).rstrip(b"=").decode()
@@ -108,6 +125,7 @@ def export_walk(
     color: str = DEFAULT_COLOR,
     max_total_tiles: int = MAX_TILES,
     max_tiles_per_import: int = SPLIT,
+    fill_color: str | None = None,
 ) -> ExportResult:
     """Build the import strings for a border walk, easing the marker count if needed."""
     if max_total_tiles < 1:
@@ -137,7 +155,7 @@ def export_walk(
         part_number = len(strings) + 1
         part_name = name if part_number == 1 else f"{name}{part_number}"
         end = min(offset + max_tiles_per_import, n)
-        strings.append(encode_string(part_name, tiles[offset:end], color))
+        strings.append(encode_string(part_name, tiles[offset:end], color, fill_color))
         labels.append(_range_label(offset + 1, end))
     first = strings[0]
     second = strings[1] if len(strings) > 1 else ""
@@ -162,6 +180,7 @@ def export_borders(
     color: str = DEFAULT_COLOR,
     max_total_tiles: int = MAX_TILES,
     max_tiles_per_import: int = SPLIT,
+    fill_color: str | None = None,
 ) -> ExportResult:
     chunk_list = list(chunk_ids)
     return export_walk(
@@ -171,6 +190,7 @@ def export_borders(
         color,
         max_total_tiles,
         max_tiles_per_import,
+        fill_color,
     )
 
 
@@ -181,6 +201,7 @@ def export_block_borders(
     color: str = DEFAULT_COLOR,
     max_total_tiles: int = MAX_TILES,
     max_tiles_per_import: int = SPLIT,
+    fill_color: str | None = None,
 ) -> ExportResult:
     block_list = list(blocks)
     return export_walk(
@@ -190,4 +211,5 @@ def export_block_borders(
         color,
         max_total_tiles,
         max_tiles_per_import,
+        fill_color,
     )

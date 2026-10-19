@@ -157,8 +157,12 @@
           <span class="field-hint">Includes both corners. Use 2 to 64.</span>
         </div>
         <div class="field">
-          <label for="marker-color">Marker color</label>
+          <label for="marker-color">Outline color</label>
           <div class="color-control"><input id="marker-color" type="color" value="#64ff69" aria-label="Choose marker color"><span class="color-value" id="color-value">#64FF69</span></div>
+        </div>
+        <div class="field">
+          <label for="marker-fill-color">Fill color</label>
+          <div class="color-control"><input id="marker-fill-color" type="color" value="#50cc54" aria-label="Choose fill color"><span class="color-value" id="fill-color-value">#50CC54</span></div>
         </div>
         <div class="action-row">
           <button class="small-button config-toggle" id="config-toggle" type="button" aria-expanded="false" aria-controls="config-panel">Config</button>
@@ -198,6 +202,7 @@
     const mapCode = $("#map-code");
     const markerCount = $("#marker-count");
     const markerColor = $("#marker-color");
+    const markerFillColor = $("#marker-fill-color");
     const generateButton = $("#generate");
     const outputContainer = $("#outputs");
     const configPanel = $("#config-panel");
@@ -230,6 +235,9 @@
 
     markerColor.addEventListener("input", () => {
       $("#color-value").textContent = markerColor.value.toUpperCase();
+    });
+    markerFillColor.addEventListener("input", () => {
+      $("#fill-color-value").textContent = markerFillColor.value.toUpperCase();
     });
 
     function showStatus(message, kind = "info") {
@@ -502,10 +510,10 @@
           chunkText = await callPython("format_unlocked_chunks", [ids, delimiter]);
           copyChunksButton.disabled = !chunkText;
           showStatus("Tracing the border...");
-          result = await callPython("generate_chunks", [ids, count, name.toUpperCase(), markerColor.value, maxTotalTiles, maxTilesPerImport]);
+          result = await callPython("generate_chunks", [ids, count, name.toUpperCase(), markerColor.value, maxTotalTiles, maxTilesPerImport, markerFillColor.value]);
         } else {
           const blocks = [...selectedBlocks].map((key) => key.split(",").map(Number));
-          result = await callPython("generate_blocks", [blocks, count, name.trim().toUpperCase() || "ENKLUMPMAN", markerColor.value, maxTotalTiles, maxTilesPerImport]);
+          result = await callPython("generate_blocks", [blocks, count, name.trim().toUpperCase() || "ENKLUMPMAN", markerColor.value, maxTotalTiles, maxTilesPerImport, markerFillColor.value]);
         }
         renderResult(result);
       } catch (error) {

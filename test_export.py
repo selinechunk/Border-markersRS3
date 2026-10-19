@@ -38,7 +38,14 @@ class EncodeStringTests(unittest.TestCase):
         text = encode_string("purple", [(50, 50, 36, 22)], "#c864ff")
         self.assertEqual(
             decode_string(text).style,
-            bytes.fromhex("01c864ffff50cc548c0c14"),
+            bytes.fromhex("01c864ffffa050cc8c0c14"),
+        )
+
+    def test_outline_and_fill_colors_can_be_selected_independently(self):
+        text = encode_string("purple", [(50, 50, 36, 22)], "#c864ff", "#38b84a")
+        self.assertEqual(
+            decode_string(text).style,
+            bytes.fromhex("01c864ffff38b84a8c0c14"),
         )
 
     def test_export_borders_uses_selected_color(self):
@@ -48,7 +55,7 @@ class EncodeStringTests(unittest.TestCase):
         self.assertIsNone(result.error)
         self.assertEqual(
             decode_string(result.first).style,
-            bytes.fromhex("01c864ffff50cc548c0c14"),
+            bytes.fromhex("01c864ffffa050cc8c0c14"),
         )
 
     def test_configurable_import_size_can_create_more_than_two_strings(self):

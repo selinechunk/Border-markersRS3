@@ -14,9 +14,10 @@ def generate_chunks(
     color: str = DEFAULT_COLOR,
     max_total_tiles: int = 232,
     max_tiles_per_import: int = 127,
+    fill_color: str | None = None,
 ) -> dict:
     result = export_borders(
-        chunk_ids, count, name, color, max_total_tiles, max_tiles_per_import
+        chunk_ids, count, name, color, max_total_tiles, max_tiles_per_import, fill_color
     )
     return {
         "first": result.first,
@@ -37,6 +38,7 @@ def generate_blocks(
     color: str = DEFAULT_COLOR,
     max_total_tiles: int = 232,
     max_tiles_per_import: int = 127,
+    fill_color: str | None = None,
 ) -> dict:
     result = export_block_borders(
         [(int(block_x), int(block_y)) for block_x, block_y in blocks],
@@ -45,6 +47,7 @@ def generate_blocks(
         color,
         max_total_tiles,
         max_tiles_per_import,
+        fill_color,
     )
     return {
         "first": result.first,

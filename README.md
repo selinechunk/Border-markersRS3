@@ -55,7 +55,7 @@ Use this when your map already lives on the Chunk Picker site.
 
 1. Type your map code in **Map code** (for example `BQE`). Case does not matter.
 2. Leave **Markers per 64 tiles** at `4`, or change it — see [Marker count](#marker-count).
-3. Choose a **Marker color**, or keep the default green.
+3. Choose independent **Outline color** and **Fill color** values, or keep the default green combination.
 4. Click **Generate**. It downloads your unlocked chunks, so give it a second.
 5. Click **Copy** under the first box, and paste it into your tile-marker app.
 
@@ -79,7 +79,7 @@ just colour in the blocks you have.
 1. Tick **Enklumpman mode (150-tile blocks)**. A grid appears.
 2. Click the blocks you own. They turn green. Click again to clear one.
    Hold the mouse down and drag to paint a whole run at once.
-3. Choose a **Marker color**, then click **Generate** and **Copy**.
+3. Choose independent **Outline color** and **Fill color** values, then click **Generate** and **Copy**.
 
 Things worth knowing about the grid:
 

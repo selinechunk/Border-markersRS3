@@ -122,6 +122,7 @@ class Window:
         self.status = next(variable for variable in label_vars if variable.get() == "")
         self.hover = next(variable for variable in label_vars if variable.get() == "Click or drag to mark the blocks you have.")
         self.color = next(variable for variable in label_vars if variable.get() == "#64ff69")
+        self.fill_color = next(variable for variable in label_vars if variable.get() == "#50cc54")
         self.delimiter = self.root.of_type(faketk.OptionMenu)[0].variable
         self.config_panel = next(
             widget for widget in self.root.of_type(faketk.Frame)
@@ -247,14 +248,16 @@ class WindowTests(unittest.TestCase):
         with unittest.mock.patch.object(
             faketk.colorchooser,
             "askcolor",
-            return_value=((200, 100, 255), "#c864ff"),
+            side_effect=[((200, 100, 255), "#c864ff"), ((56, 184, 74), "#38b84a")],
         ):
             window.root.button("Choose color").invoke()
+            window.root.button("Choose fill").invoke()
         self.assertEqual(window.color.get(), "#c864ff")
+        self.assertEqual(window.fill_color.get(), "#38b84a")
         window.check.toggle()
         window.root.button("Generate").invoke()
         decoded = decode_string(window.boxes[0].content)
-        self.assertEqual(decoded.style, bytes.fromhex("01c864ffff50cc548c0c14"))
+        self.assertEqual(decoded.style, bytes.fromhex("01c864ffff38b84a8c0c14"))
 
     def test_generate_needs_no_map_code_but_uses_it_as_a_name(self):
         window = Window()
