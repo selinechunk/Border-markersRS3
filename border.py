@@ -61,7 +61,7 @@ def chunk_id_to_grid(chunk_id: int) -> tuple[int, int]:
         picker_y = 0
     else:
         picker_y = STEP - (delta % STEP)
-        grid_x, grid_y = picker_x + 29, 71 - picker_y
+    grid_x, grid_y = picker_x + 29, 71 - picker_y
     for (west, south), (east, north), (shift_x, shift_y) in RELOCATED:
         if west <= grid_x <= east and south <= grid_y <= north:
             return grid_x + shift_x, grid_y + shift_y

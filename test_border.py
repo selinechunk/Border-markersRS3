@@ -12,7 +12,9 @@ def ids_for(grids):
 
 class GridTests(unittest.TestCase):
     def test_origin_ids(self):
+        self.assertEqual(chunk_id_to_grid(7494), (29, 70))
         self.assertEqual(chunk_id_to_grid(7495), (29, 71))
+        self.assertEqual(chunk_id_to_grid(7750), (30, 70))
         self.assertEqual(chunk_id_to_grid(7751), (30, 71))
 
     def test_bqe_example_ids(self):
