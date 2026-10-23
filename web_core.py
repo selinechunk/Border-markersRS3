@@ -1,6 +1,6 @@
 """Small Python bridge used by the static browser app."""
 
-from export import DEFAULT_COLOR, export_borders, export_block_borders
+from export import DEFAULT_COLOR, MAX_TILES, SPLIT, export_borders, export_block_borders
 
 
 def format_unlocked_chunks(chunk_ids: list[int], delimiter: str = " ") -> str:
@@ -12,8 +12,8 @@ def generate_chunks(
     count: int,
     name: str,
     color: str = DEFAULT_COLOR,
-    max_total_tiles: int = 232,
-    max_tiles_per_import: int = 127,
+    max_total_tiles: int = MAX_TILES,
+    max_tiles_per_import: int = SPLIT,
     fill_color: str | None = None,
 ) -> dict:
     result = export_borders(
@@ -36,8 +36,8 @@ def generate_blocks(
     count: int,
     name: str,
     color: str = DEFAULT_COLOR,
-    max_total_tiles: int = 232,
-    max_tiles_per_import: int = 127,
+    max_total_tiles: int = MAX_TILES,
+    max_tiles_per_import: int = SPLIT,
     fill_color: str | None = None,
 ) -> dict:
     result = export_block_borders(

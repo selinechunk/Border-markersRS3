@@ -150,18 +150,16 @@ class ExportBordersTests(unittest.TestCase):
         self.assertEqual(result.second_label, "Tiles 128–232")
         self.assertTrue(result.second.startswith("TM2"))
 
-    def test_one_grid_count_60_suggests_59(self):
+    def test_one_grid_count_60_passes_new_default_limit(self):
         result = export_borders([12850], 60, "G")
-        self.assertEqual(result.error, "Too many tiles (236). Try a marker count of 59 or less.")
-        self.assertEqual(result.first, "")
-        self.assertEqual(result.second, "")
-        self.assertEqual(result.first_label, "")
-        self.assertEqual(result.second_label, "")
+        self.assertIsNone(result.error)
         self.assertEqual(result.tile_count, 236)
+        self.assertEqual(result.first_label, "Tiles 1–127")
+        self.assertEqual(result.second_label, "Tiles 128–236")
 
     def test_tall_column_count_2_is_too_big(self):
         ids = ids_for([(50, 10 + row) for row in range(59)])
-        result = export_borders(ids, 2, "BIG")
+        result = export_borders(ids, 2, "BIG", max_total_tiles=232)
         self.assertEqual(result.error, "That map is too big, sorry.")
         self.assertGreater(result.tile_count, 232)
 

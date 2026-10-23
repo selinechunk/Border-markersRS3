@@ -6,7 +6,7 @@ from border import block_border_loops, border_loops
 
 Tile = tuple[int, int, int, int]
 SPLIT = 127
-MAX_TILES = 232
+MAX_TILES = 5000
 MAX_IMPORT_TILES = 255
 
 

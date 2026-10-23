@@ -63,7 +63,7 @@ Click **Copy chunk IDs** to copy the unlocked chunks as a space-separated list o
 as `13850 13851`.
 
 Open **Config** to change the chunk ID delimiter (space, comma, new line, or tab), the
-maximum total marker tiles (default `232`), and the maximum tiles per import string
+maximum total marker tiles (default `5000`), and the maximum tiles per import string
 (default `127`). Lower the per-import limit to split a large border into additional strings.
 
 If a second box fills in as well, paste that one too. Your border was too long for one
@@ -106,7 +106,7 @@ This is how many markers get placed along each edge, counting both corners.
 - In map-code mode it is per 64-tile chunk edge. `4` gives a marker every 21 tiles.
 - In Enklumpman mode it is per 150-tile block edge. `4` gives a marker every 50 tiles.
 
-Higher means a more solid-looking line, but more markers. The default limits are **232
+Higher means a more solid-looking line, but more markers. The default limits are **5000
 markers in total** and **127 per import string**. Use **Config** to change them; larger
 exports are split into as many strings as needed. A single import string cannot exceed 255
 tiles because of the marker format.

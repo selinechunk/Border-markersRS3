@@ -88,7 +88,7 @@ class BlockExportTests(unittest.TestCase):
         self.assertTrue(result.first.startswith("TM2"))
 
     def test_too_many_markers_suggests_a_lower_count(self):
-        result = export_block_borders([START_BLOCK], 64, "E")
+        result = export_block_borders([START_BLOCK], 64, "E", max_total_tiles=232)
         self.assertIsNotNone(result.error)
         self.assertIn("Try a marker count of", result.error)
 
@@ -115,7 +115,7 @@ class Window:
         self.code = next(variable for variable in entry_vars if variable.get() == "")
         self.count = next(variable for variable in entry_vars if variable.get() == "4")
         self.blocks = next(variable for variable in entry_vars if variable.get() == "19,23")
-        self.max_total = next(variable for variable in entry_vars if variable.get() == "232")
+        self.max_total = next(variable for variable in entry_vars if variable.get() == "5000")
         self.max_per_import = next(variable for variable in entry_vars if variable.get() == "127")
         self.code_label = next(variable for variable in label_vars if variable.get() == "Map code")
         self.count_label = next(variable for variable in label_vars if variable.get() == "Markers per 64 tiles")
@@ -159,7 +159,7 @@ class WindowTests(unittest.TestCase):
         window.root.button("Config").invoke()
         self.assertTrue(window.config_panel.visible)
         self.assertEqual(window.delimiter.get(), "Space")
-        self.assertEqual(window.max_total.get(), "232")
+        self.assertEqual(window.max_total.get(), "5000")
         self.assertEqual(window.max_per_import.get(), "127")
 
     def test_grid_is_hidden_until_the_mode_is_on(self):
@@ -282,6 +282,7 @@ class WindowTests(unittest.TestCase):
         window.blocks.set(" ".join(f"19,{row}" for row in range(9, 31)))
         window.root.button("Apply").invoke()
         window.count.set("64")
+        window.max_total.set("232")
         window.root.button("Generate").invoke()
         self.assertIn("tiles", window.status.get())
         self.assertTrue(
