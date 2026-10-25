@@ -4,8 +4,8 @@ This little desktop program draws the **edge** of your unlocked world. You give 
 it works out which chunk edges sit between unlocked and locked ground, and it hands you an
 import string full of tile markers you can paste into your tile-marker app.
 
-Shared edges between two unlocked chunks are skipped, so you only get the outline. A locked
-pocket surrounded by unlocked ground gets its own ring.
+Shared edges between two unlocked chunks are skipped, so you only get the outline of unlocked
+ground. Enclosed locked pockets are left unmarked.
 
 ## Start it
 
@@ -88,7 +88,8 @@ Things worth knowing about the grid:
 - **The pale blue dots are landmarks** (Varrock, Falador, Lumbridge and so on), placed where
   they really sit inside their block. They are only there so you can find your bearings.
 - **Hover any block** to read its coordinates and tile range at the bottom, for example
-  `(19, 23)  x 2857-3006  y 3457-3606  · Burthorpe`.
+  `(19, 23)  x 2856-3005  y 3457-3606  · Burthorpe`. Block boundaries are shifted one
+  tile west to match the game map.
 - **The Blocks box** lists what you have picked, like `19,23 20,23`. Copy it somewhere safe
   to keep a layout, then paste it back and press **Apply** to restore it. **Clear** puts you
   back to just the start block.

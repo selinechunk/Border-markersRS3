@@ -105,95 +105,45 @@ class OuterBorderTests(unittest.TestCase):
 
 
 class HoleTests(unittest.TestCase):
-    def test_bqe_outer_loops_and_hole(self):
+    def test_bqe_outer_loops_omit_locked_pocket(self):
         chunk_ids = [11833, 11834, 11835, 12089, 12091, 12345, 12346, 12347, 13624, 13625, 13626, 13882]
         loops = format_borders(chunk_ids, 4).split("\n\n")
-        self.assertEqual(len(loops), 3)
+        self.assertEqual(len(loops), 2)
         self.assertTrue(loops[0].startswith("(46, 59)0 - 63\n"))
-        self.assertEqual(loops[1], "\n".join([
-            "(47, 58)0 - 63",
-            "(47, 58)21 - 63",
-            "(47, 58)42 - 63",
-            "(47, 58)63 - 63",
-            "(47, 58)63 - 42",
-            "(47, 58)63 - 21",
-            "(47, 58)63 - 0",
-            "(47, 58)42 - 0",
-            "(47, 58)21 - 0",
-            "(47, 58)0 - 0",
-            "(47, 58)0 - 21",
-            "(47, 58)0 - 42",
-        ]))
-        self.assertTrue(loops[2].startswith("(53, 58)0 - 63\n"))
+        self.assertTrue(loops[1].startswith("(53, 58)0 - 63\n"))
         self.assertNotIn("(47, 58)", loops[0])
-        self.assertNotIn("(46, 58)63 - 42", loops[0])
-        self.assertNotIn("(47, 59)21 - 0", loops[0])
 
-    def test_hole_of_two_locked_grids_omits_their_shared_edge(self):
+    def test_hole_of_two_locked_grids_is_omitted(self):
         chunk_ids = [10292, 10548, 10804, 11060, 10291, 11059, 10290, 10546, 10802, 11058]
         loops = format_borders(chunk_ids, 4).split("\n\n")
-        self.assertEqual(len(loops), 2)
-        self.assertEqual(loops[1], "\n".join([
-            "(41, 51)0 - 63",
-            "(41, 51)21 - 63",
-            "(41, 51)42 - 63",
-            "(41, 51)63 - 63",
-            "(42, 51)0 - 63",
-            "(42, 51)21 - 63",
-            "(42, 51)42 - 63",
-            "(42, 51)63 - 63",
-            "(42, 51)63 - 42",
-            "(42, 51)63 - 21",
-            "(42, 51)63 - 0",
-            "(42, 51)42 - 0",
-            "(42, 51)21 - 0",
-            "(42, 51)0 - 0",
-            "(41, 51)63 - 0",
-            "(41, 51)42 - 0",
-            "(41, 51)21 - 0",
-            "(41, 51)0 - 0",
-            "(41, 51)0 - 21",
-            "(41, 51)0 - 42",
-        ]))
-        self.assertNotIn("(41, 51)63 - 42", loops[1])
-        self.assertNotIn("(42, 51)0 - 42", loops[1])
+        self.assertEqual(len(loops), 1)
+        self.assertNotIn("(41, 51)", loops[0])
+        self.assertNotIn("(42, 51)", loops[0])
 
 
 class GlobalHoleTests(unittest.TestCase):
-    def test_locked_grid_enclosed_by_two_diagonal_areas(self):
+    def test_locked_grid_enclosed_by_two_diagonal_areas_is_omitted(self):
         grids = [(30, 67), (30, 68), (31, 67), (32, 67), (32, 68), (31, 69)]
         loops = format_borders(ids_for(grids), 4).split("\n\n")
-        self.assertEqual(len(loops), 3)
-        hole_loops = [loop for loop in loops if loop.startswith("(31, 68)0 - 63\n")]
-        self.assertEqual(len(hole_loops), 1)
-        for line in hole_loops[0].splitlines():
-            self.assertTrue(line.startswith("(31, 68)"), line)
-        self.assertEqual(len(hole_loops[0].splitlines()), 12)
+        self.assertEqual(len(loops), 2)
+        self.assertFalse(any("(31, 68)" in loop for loop in loops))
 
     # Grid x below 29 has no chunk id, so the ring is shifted 30 columns east.
-    def test_unlocked_cell_inside_ring_is_not_part_of_hole(self):
+    def test_unlocked_cell_inside_ring_keeps_its_own_border(self):
         grids = [(x, y) for x in range(40, 45) for y in range(10, 15) if x in (40, 44) or y in (10, 14)]
         grids.append((42, 12))
         loops = format_borders(ids_for(grids), 4).split("\n\n")
-        self.assertEqual(len(loops), 3)
+        self.assertEqual(len(loops), 2)
         self.assertTrue(loops[0].startswith("(40, 14)0 - 63\n"))
-        self.assertTrue(loops[1].startswith("(41, 13)0 - 63\n"))
-        center = "\n".join([
-            "(42, 12)0 - 63",
-            "(42, 12)21 - 63",
-            "(42, 12)42 - 63",
-            "(42, 12)63 - 63",
-            "(42, 12)63 - 42",
-            "(42, 12)63 - 21",
-            "(42, 12)63 - 0",
-            "(42, 12)42 - 0",
-            "(42, 12)21 - 0",
-            "(42, 12)0 - 0",
-            "(42, 12)0 - 21",
-            "(42, 12)0 - 42",
-        ])
-        self.assertEqual(loops[2], center)
-        self.assertNotIn("(42, 12)", loops[1])
+        self.assertTrue(loops[1].startswith("(42, 12)0 - 63\n"))
+
+    def test_eoc_locked_chunk_is_never_marked(self):
+        grids = [(47, 54), (48, 54), (48, 55), (46, 55), (47, 56)]
+        loops = border_loops(ids_for(grids), 9)
+        self.assertTrue(loops)
+        self.assertFalse(
+            any((grid_x, grid_y) == (47, 55) for loop in loops for grid_x, grid_y, _, _ in loop)
+        )
 
 
 class AppHelperTests(unittest.TestCase):

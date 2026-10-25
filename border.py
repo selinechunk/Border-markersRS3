@@ -9,6 +9,7 @@ STEP = 256
 CHUNK_SIZE = 64
 BLOCK_SIZE = 150
 BLOCK_ORIGIN = 7
+BLOCK_ORIGIN_X = BLOCK_ORIGIN - 1
 START_BLOCK = (19, 23)
 HEADINGS = {"E": (1, 0), "S": (0, -1), "W": (-1, 0), "N": (0, 1)}
 RIGHT_TURN = {"E": "S", "S": "W", "W": "N", "N": "E"}
@@ -31,11 +32,15 @@ class Lattice:
     """A square grid of cells, measured in game tiles."""
 
     size: int
-    origin: int
+    origin_x: int
+    origin_y: int
 
     def low_corner(self, cell: tuple[int, int]) -> tuple[int, int]:
         cell_x, cell_y = cell
-        return self.origin + self.size * cell_x, self.origin + self.size * cell_y
+        return (
+            self.origin_x + self.size * cell_x,
+            self.origin_y + self.size * cell_y,
+        )
 
     def bounds(self, cell: tuple[int, int]) -> tuple[int, int, int, int]:
         west, south = self.low_corner(cell)
@@ -43,13 +48,13 @@ class Lattice:
 
     def cell_at(self, tile_x: int, tile_y: int) -> tuple[int, int]:
         return (
-            (tile_x - self.origin) // self.size,
-            (tile_y - self.origin) // self.size,
+            (tile_x - self.origin_x) // self.size,
+            (tile_y - self.origin_y) // self.size,
         )
 
 
-CHUNKS = Lattice(CHUNK_SIZE, 0)
-BLOCKS = Lattice(BLOCK_SIZE, BLOCK_ORIGIN)
+CHUNKS = Lattice(CHUNK_SIZE, 0, 0)
+BLOCKS = Lattice(BLOCK_SIZE, BLOCK_ORIGIN_X, BLOCK_ORIGIN)
 
 
 def chunk_id_to_grid(chunk_id: int) -> tuple[int, int]:
@@ -180,63 +185,11 @@ def start_key(group: set[tuple[int, int]]) -> tuple[int, int]:
     return (-grid_y, grid_x)
 
 
-def find_holes(unlocked: set[tuple[int, int]]) -> list[set[tuple[int, int]]]:
-    if not unlocked:
-        return []
-    min_x = min(x for x, _y in unlocked) - 1
-    max_x = max(x for x, _y in unlocked) + 1
-    min_y = min(y for _x, y in unlocked) - 1
-    max_y = max(y for _x, y in unlocked) + 1
-
-    outside: set[tuple[int, int]] = set()
-    queue = deque([(min_x, min_y)])
-    while queue:
-        x, y = queue.popleft()
-        if (x, y) in outside or (x, y) in unlocked:
-            continue
-        if not (min_x <= x <= max_x and min_y <= y <= max_y):
-            continue
-        outside.add((x, y))
-        queue.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
-
-    enclosed = {
-        (x, y)
-        for x in range(min_x, max_x + 1)
-        for y in range(min_y, max_y + 1)
-        if (x, y) not in unlocked and (x, y) not in outside
-    }
-    return connected_components(enclosed)
-
-
 def cell_border_loops(
     cells: set[tuple[int, int]], count: int, lattice: Lattice
 ) -> list[list[tuple[int, int, int, int]]]:
-    areas = connected_components(cells)
-    area_of = {cell: index for index, area in enumerate(areas) for cell in area}
-
-    area_holes: list[list[set[tuple[int, int]]]] = [[] for _ in areas]
-    groups: list[tuple[tuple[int, int], list[set[tuple[int, int]]]]] = []
-    for hole in find_holes(cells):
-        touching = {
-            area_of[neighbor]
-            for x, y in hole
-            for neighbor in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1))
-            if neighbor in area_of
-        }
-        if len(touching) == 1:
-            area_holes[touching.pop()].append(hole)
-        else:
-            groups.append((start_key(hole), [hole]))
-    for index, area in enumerate(areas):
-        holes = sorted(area_holes[index], key=start_key)
-        groups.append((start_key(area), [area] + holes))
-    groups.sort(key=lambda group: group[0])
-
-    loops = []
-    for _key, shapes in groups:
-        for shape in shapes:
-            loops.append(trace_cycle(shape, count, lattice))
-    return loops
+    areas = sorted(connected_components(cells), key=start_key)
+    return [trace_cycle(area, count, lattice) for area in areas]
 
 
 def border_loops(chunk_ids: Iterable[int], count: int) -> list[list[tuple[int, int, int, int]]]:

@@ -110,7 +110,7 @@ class RoundTripTests(unittest.TestCase):
             (grid_x * 64 + local_x, grid_y * 64 + local_y)
             for grid_x, grid_y, local_x, local_y in decoded.tiles
         }
-        self.assertEqual(corners, {(2857, 3457), (2857, 3606), (3006, 3457), (3006, 3606)})
+        self.assertEqual(corners, {(2856, 3457), (2856, 3606), (3005, 3457), (3005, 3606)})
 
 
 class BadStringTests(unittest.TestCase):

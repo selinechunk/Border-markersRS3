@@ -14,13 +14,13 @@ CELL = 24
 
 class BlockGeometryTests(unittest.TestCase):
     def test_start_block_matches_the_marked_square(self):
-        self.assertEqual(BLOCKS.bounds(START_BLOCK), (2857, 3457, 3006, 3606))
+        self.assertEqual(BLOCKS.bounds(START_BLOCK), (2856, 3457, 3005, 3606))
 
     def test_block_lookup_from_a_tile(self):
         self.assertEqual(BLOCKS.cell_at(2886, 3532), START_BLOCK)
-        self.assertEqual(BLOCKS.cell_at(2857, 3457), START_BLOCK)
-        self.assertEqual(BLOCKS.cell_at(2856, 3457), (18, 23))
-        self.assertEqual(BLOCKS.cell_at(2857, 3456), (19, 22))
+        self.assertEqual(BLOCKS.cell_at(2856, 3457), START_BLOCK)
+        self.assertEqual(BLOCKS.cell_at(2855, 3457), (18, 23))
+        self.assertEqual(BLOCKS.cell_at(2856, 3456), (19, 22))
 
     def test_marker_positions_span_the_block_edge(self):
         self.assertEqual(marker_positions(2, 150), [0, 149])
@@ -33,10 +33,10 @@ class BlockBorderTests(unittest.TestCase):
         self.assertEqual(
             format_block_borders([START_BLOCK], 2),
             "\n".join([
-                "(44, 56)41 - 22",
-                "(46, 56)62 - 22",
-                "(46, 54)62 - 1",
-                "(44, 54)41 - 1",
+                "(44, 56)40 - 22",
+                "(46, 56)61 - 22",
+                "(46, 54)61 - 1",
+                "(44, 54)40 - 1",
             ]),
         )
 
@@ -46,19 +46,19 @@ class BlockBorderTests(unittest.TestCase):
         self.assertEqual(len(loops[0]), 12)
 
     def test_shared_edge_is_omitted_and_seam_is_kept(self):
-        # One 300 by 150 outline. The blocks meet at tiles x 3006 and x 3007, and a
+        # One 300 by 150 outline. The blocks meet at tiles x 3005 and x 3006, and a
         # straight crossing keeps both seam ends, as in chunk mode.
         self.assertEqual(
             format_block_borders([START_BLOCK, (20, 23)], 2),
             "\n".join([
-                "(44, 56)41 - 22",
+                "(44, 56)40 - 22",
+                "(46, 56)61 - 22",
                 "(46, 56)62 - 22",
-                "(46, 56)63 - 22",
-                "(49, 56)20 - 22",
-                "(49, 54)20 - 1",
-                "(46, 54)63 - 1",
+                "(49, 56)19 - 22",
+                "(49, 54)19 - 1",
                 "(46, 54)62 - 1",
-                "(44, 54)41 - 1",
+                "(46, 54)61 - 1",
+                "(44, 54)40 - 1",
             ]),
         )
 
@@ -66,7 +66,7 @@ class BlockBorderTests(unittest.TestCase):
         loops = block_border_loops([START_BLOCK, (20, 24)], 2)
         self.assertEqual(len(loops), 2)
 
-    def test_enclosed_block_gets_its_own_loop(self):
+    def test_enclosed_locked_block_is_omitted(self):
         ring = [
             (block_x, block_y)
             for block_x in range(18, 21)
@@ -74,8 +74,10 @@ class BlockBorderTests(unittest.TestCase):
             if (block_x, block_y) != (19, 23)
         ]
         loops = block_border_loops(ring, 2)
-        self.assertEqual(len(loops), 2)
-        self.assertEqual(len(loops[1]), 4)
+        self.assertEqual(len(loops), 1)
+        self.assertTrue(
+            all((grid_x, grid_y) != (19, 23) for loop in loops for grid_x, grid_y, _, _ in loop)
+        )
 
 
 class BlockExportTests(unittest.TestCase):
@@ -210,7 +212,7 @@ class WindowTests(unittest.TestCase):
         window = Window()
         window.canvas.hover(*window.centre_of(START_BLOCK))
         self.assertEqual(
-            window.hover.get(), "(19, 23)  x 2857-3006  y 3457-3606  · Burthorpe"
+            window.hover.get(), "(19, 23)  x 2856-3005  y 3457-3606  · Burthorpe"
         )
 
     def test_apply_and_clear_the_block_list(self):
