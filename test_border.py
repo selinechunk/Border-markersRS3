@@ -23,6 +23,9 @@ class GridTests(unittest.TestCase):
         self.assertEqual(chunk_id_to_grid(13626), (53, 58))
         self.assertEqual(chunk_id_to_grid(13882), (54, 58))
 
+    def test_anachronia_offset(self):
+        self.assertEqual(chunk_id_to_grid(15683), (83, 35))
+
     def test_marker_positions(self):
         self.assertEqual(marker_positions(4), [0, 21, 42, 63])
         self.assertEqual(marker_positions(5), [0, 16, 32, 47, 63])

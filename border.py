@@ -21,7 +21,7 @@ OPPOSITE = {"E": "W", "W": "E", "N": "S", "S": "N"}
 # shift from there to the real chunks.
 RELOCATED = (
     ((58, 22), (71, 36), (-31, 151)),  # Arc Islands
-    ((57, 63), (66, 71), (23, -31)),  # Anachronia
+    ((57, 63), (66, 71), (22, -32)),  # Anachronia
     ((63, 48), (69, 56), (-11, -28)),  # Havenhythe
     ((29, 47), (31, 50), (-9, 39)),  # Lost Grove
 )
