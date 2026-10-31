@@ -65,6 +65,10 @@ as `13850 13851`.
 Open **Config** to change the chunk ID delimiter (space, comma, new line, or tab), the
 maximum total marker tiles (default `5000`), and the maximum tiles per import string
 (default `127`). Lower the per-import limit to split a large border into additional strings.
+You can also select **One import string per Border chunk**. Each string is named and
+grouped by the chunk coordinates it contains, making it easier to replace only the strings
+affected when the map changes. A chunk whose markers exceed the per-import limit is split
+into multiple strings.
 
 If a second box fills in as well, paste that one too. Your border was too long for one
 string, so it was split in two.

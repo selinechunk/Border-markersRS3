@@ -126,6 +126,7 @@ def export_walk(
     max_total_tiles: int = MAX_TILES,
     max_tiles_per_import: int = SPLIT,
     fill_color: str | None = None,
+    one_per_chunk: bool = False,
 ) -> ExportResult:
     """Build the import strings for a border walk, easing the marker count if needed."""
     if max_total_tiles < 1:
@@ -149,14 +150,42 @@ def export_walk(
             f"Too many tiles ({n}). Try a marker count of {suggested} or less.",
             n,
         )
+    if one_per_chunk:
+        chunks: dict[tuple[int, int], list[Tile]] = {}
+        for tile in tiles:
+            chunks.setdefault(tile[:2], []).append(tile)
+        groups = [
+            (f"{name}_{grid_x}_{grid_y}", f"Chunk ({grid_x}, {grid_y})", chunk_tiles)
+            for (grid_x, grid_y), chunk_tiles in sorted(
+                chunks.items(), key=lambda item: (item[0][1], item[0][0])
+            )
+        ]
+    else:
+        groups = [(name, "", tiles)]
+
     strings = []
     labels = []
-    for offset in range(0, n, max_tiles_per_import):
-        part_number = len(strings) + 1
-        part_name = name if part_number == 1 else f"{name}{part_number}"
-        end = min(offset + max_tiles_per_import, n)
-        strings.append(encode_string(part_name, tiles[offset:end], color, fill_color))
-        labels.append(_range_label(offset + 1, end))
+    for group_name, group_label, group_tiles in groups:
+        part_count = (len(group_tiles) + max_tiles_per_import - 1) // max_tiles_per_import
+        for part_index, offset in enumerate(
+            range(0, len(group_tiles), max_tiles_per_import), start=1
+        ):
+            end = min(offset + max_tiles_per_import, len(group_tiles))
+            if one_per_chunk:
+                part_name = group_name if part_count == 1 else f"{group_name}_{part_index}"
+                label = (
+                    group_label
+                    if part_count == 1
+                    else f"{group_label} (part {part_index})"
+                )
+            else:
+                part_number = len(strings) + 1
+                part_name = name if part_number == 1 else f"{name}{part_number}"
+                label = _range_label(offset + 1, end)
+            strings.append(
+                encode_string(part_name, group_tiles[offset:end], color, fill_color)
+            )
+            labels.append(label)
     first = strings[0]
     second = strings[1] if len(strings) > 1 else ""
     first_label = labels[0]
@@ -181,6 +210,7 @@ def export_borders(
     max_total_tiles: int = MAX_TILES,
     max_tiles_per_import: int = SPLIT,
     fill_color: str | None = None,
+    one_per_chunk: bool = False,
 ) -> ExportResult:
     chunk_list = list(chunk_ids)
     return export_walk(
@@ -191,6 +221,7 @@ def export_borders(
         max_total_tiles,
         max_tiles_per_import,
         fill_color,
+        one_per_chunk,
     )
 
 

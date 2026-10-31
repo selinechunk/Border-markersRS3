@@ -76,6 +76,8 @@
     .config-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(95px, 130px); align-items: center; gap: 10px; }
     .config-field label { font-size: 12px; font-weight: 600; }
     .config-field input, .config-field select { width: 100%; min-width: 0; height: 36px; padding: 0 8px; border: 1px solid var(--line); border-radius: 0; color: var(--ink); background: white; }
+    #one-per-chunk-field { grid-template-columns: minmax(0, 1fr) auto; }
+    #one-per-chunk-field input { width: 18px; height: 18px; padding: 0; }
     .status { min-height: 40px; margin: 14px 0 0; padding: 10px 11px; border-left: 3px solid var(--gold); color: var(--muted); background: #f3f4ed; font-size: 12px; line-height: 1.45; }
     .status[data-kind="error"] { border-color: var(--orange); color: #8c3927; background: #fff0e9; }
     .status[data-kind="success"] { border-color: var(--green); color: var(--green-dark); background: var(--mint); }
@@ -172,6 +174,7 @@
           <div class="config-field"><label for="chunk-delimiter">Chunk ID delimiter</label><select id="chunk-delimiter"><option value="space">Space</option><option value="comma">Comma</option><option value="newline">New line</option><option value="tab">Tab</option></select></div>
           <div class="config-field"><label for="max-total-tiles">Maximum total tiles</label><input id="max-total-tiles" type="number" min="1" step="1" value="5000"></div>
           <div class="config-field"><label for="max-per-import">Maximum tiles per import</label><input id="max-per-import" type="number" min="1" max="255" step="1" value="127"></div>
+          <div class="config-field" id="one-per-chunk-field"><label for="one-per-chunk">One import string per Border chunk</label><input id="one-per-chunk" type="checkbox"></div>
         </div>
         <p class="status" id="status" role="status" aria-live="polite">Ready. Enter a map code to begin.</p>
         <div class="block-tools" id="block-tools" hidden>
@@ -341,6 +344,7 @@
       $("#count-label").textContent = mapMode ? "Markers per 64-tile edge" : "Markers per block edge";
       $("#block-tools").hidden = mapMode;
       $("#chunk-copy-row").hidden = !mapMode;
+      $("#one-per-chunk-field").hidden = !mapMode;
       $("#generate").textContent = mapMode ? "Generate border" : "Generate block border";
       if (!mapMode) $("#hover-readout").textContent = "Click or drag to mark the blocks you have.";
     }
@@ -510,7 +514,7 @@
           chunkText = await callPython("format_unlocked_chunks", [ids, delimiter]);
           copyChunksButton.disabled = !chunkText;
           showStatus("Tracing the border...");
-          result = await callPython("generate_chunks", [ids, count, name.toUpperCase(), markerColor.value, maxTotalTiles, maxTilesPerImport, markerFillColor.value]);
+          result = await callPython("generate_chunks", [ids, count, name.toUpperCase(), markerColor.value, maxTotalTiles, maxTilesPerImport, markerFillColor.value, $("#one-per-chunk").checked]);
         } else {
           const blocks = [...selectedBlocks].map((key) => key.split(",").map(Number));
           result = await callPython("generate_blocks", [blocks, count, name.trim().toUpperCase() || "ENKLUMPMAN", markerColor.value, maxTotalTiles, maxTilesPerImport, markerFillColor.value]);

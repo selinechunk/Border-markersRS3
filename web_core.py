@@ -15,9 +15,17 @@ def generate_chunks(
     max_total_tiles: int = MAX_TILES,
     max_tiles_per_import: int = SPLIT,
     fill_color: str | None = None,
+    one_per_chunk: bool = False,
 ) -> dict:
     result = export_borders(
-        chunk_ids, count, name, color, max_total_tiles, max_tiles_per_import, fill_color
+        chunk_ids,
+        count,
+        name,
+        color,
+        max_total_tiles,
+        max_tiles_per_import,
+        fill_color,
+        one_per_chunk,
     )
     return {
         "first": result.first,

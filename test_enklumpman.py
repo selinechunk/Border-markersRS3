@@ -133,6 +133,11 @@ class Window:
         self.boxes = self.root.of_type(faketk.Text)
         self.canvas = self.root.of_type(faketk.Canvas)[0]
         self.check = self.root.of_type(faketk.Checkbutton)[0]
+        self.one_per_chunk = next(
+            widget.options["variable"]
+            for widget in self.root.of_type(faketk.Checkbutton)
+            if widget.options.get("text") == "One import string per Border chunk"
+        )
         self.grid_frame = self.canvas.master
 
     def centre_of(self, block):
@@ -357,6 +362,25 @@ class WindowTests(unittest.TestCase):
         outputs = window.root.of_type(faketk.Text)
         self.assertEqual(len(outputs), 5)
         self.assertTrue(all(output.content.startswith("TM2") for output in outputs))
+
+    def test_desktop_can_generate_one_string_per_border_chunk(self):
+        window = Window()
+        window.one_per_chunk.set(True)
+
+        class ImmediateThread:
+            def __init__(self, target, daemon):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        with unittest.mock.patch("app.fetch_unlocked_ids", return_value=[12850, 12594]):
+            with unittest.mock.patch("app.threading.Thread", ImmediateThread):
+                window.code.set("BQE")
+                window.root.button("Generate").invoke()
+
+        outputs = [box.content for box in window.root.of_type(faketk.Text) if box.content.startswith("TM2")]
+        self.assertGreater(len(outputs), 1)
 
     def test_configured_total_tile_limit_is_applied(self):
         window = Window()

@@ -73,6 +73,62 @@ class EncodeStringTests(unittest.TestCase):
         ])
         self.assertEqual(decode_string(result.strings[2]).name, "G3")
 
+    def test_one_string_per_border_chunk_preserves_the_full_border(self):
+        from export import export_borders
+
+        chunk_ids = [12850, 12594]
+        whole = export_borders(chunk_ids, 4, "BQE")
+        result = export_borders(chunk_ids, 4, "BQE", one_per_chunk=True)
+        decoded = [decode_string(text) for text in result.strings]
+
+        self.assertIsNone(result.error)
+        self.assertEqual(
+            {tile for marker_string in decoded for tile in marker_string.tiles},
+            {tile for text in whole.strings for tile in decode_string(text).tiles},
+        )
+        self.assertTrue(all(len({tile[:2] for tile in item.tiles}) == 1 for item in decoded))
+        self.assertEqual(
+            result.labels,
+            [
+                f"Chunk ({grid_x}, {grid_y})"
+                for grid_x, grid_y in sorted(
+                    {tile[:2] for item in decoded for tile in item.tiles},
+                    key=lambda cell: (cell[1], cell[0]),
+                )
+            ],
+        )
+        self.assertTrue(all(item.name.startswith("BQE_") for item in decoded))
+
+    def test_adding_a_distant_chunk_keeps_existing_import_strings(self):
+        from export import export_borders
+
+        original = export_borders([12850], 4, "BQE", one_per_chunk=True)
+        expanded = export_borders([12850, 7495], 4, "BQE", one_per_chunk=True)
+
+        self.assertIn(original.first, expanded.strings)
+        self.assertEqual(len(expanded.strings), len(original.strings) + 1)
+
+    def test_per_chunk_imports_still_honor_the_import_tile_limit(self):
+        from export import export_borders
+
+        result = export_borders([12850], 59, "G", one_per_chunk=True, max_tiles_per_import=50)
+
+        self.assertEqual(len(result.strings), 5)
+        self.assertTrue(all(label.startswith("Chunk (") for label in result.labels))
+        self.assertEqual(
+            [label.rsplit(" ", 1)[-1].rstrip(")") for label in result.labels],
+            ["1", "2", "3", "4", "5"],
+        )
+
+    def test_web_bridge_supports_per_chunk_imports(self):
+        from web_core import generate_chunks
+
+        result = generate_chunks([12850, 12594], 4, "BQE", one_per_chunk=True)
+
+        self.assertIsNone(result["error"])
+        self.assertGreater(len(result["strings"]), 1)
+        self.assertTrue(all(label.startswith("Chunk (") for label in result["labels"]))
+
     def test_configurable_total_limit_refuses_too_many_tiles(self):
         result = export_borders([12850], 2, "G", max_total_tiles=3)
         self.assertEqual(result.error, "That map is too big, sorry.")

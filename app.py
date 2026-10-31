@@ -173,6 +173,7 @@ def main() -> None:
     delimiter_var = tk.StringVar(value="Space")
     max_total_var = tk.StringVar(value=str(MAX_TILES))
     max_per_import_var = tk.StringVar(value=str(SPLIT))
+    one_per_chunk_var = tk.BooleanVar(value=False)
 
     form = tk.Frame(root, padx=12, pady=12)
     form.pack(fill="x")
@@ -230,6 +231,12 @@ def main() -> None:
     tk.Entry(config_panel, textvariable=max_per_import_var, width=12).grid(
         row=2, column=1, sticky="w"
     )
+    one_per_chunk_check = tk.Checkbutton(
+        config_panel,
+        text="One import string per Border chunk",
+        variable=one_per_chunk_var,
+    )
+    one_per_chunk_check.grid(row=3, column=0, columnspan=2, sticky="w")
     config_panel.grid_remove()
     config_open = {"value": False}
 
@@ -413,11 +420,13 @@ def main() -> None:
             code_label_var.set("Marker name")
             count_label_var.set("Markers per block edge")
             copy_chunks.configure(state="disabled")
+            one_per_chunk_check.configure(state="disabled")
             grid_frame.pack(fill="x", pady=(0, 12), before=strings)
         else:
             code_label_var.set("Map code")
             count_label_var.set("Markers per 64 tiles")
             copy_chunks.configure(state="normal")
+            one_per_chunk_check.configure(state="normal")
             grid_frame.pack_forget()
 
     enklumpman_check.configure(command=on_mode_change)
@@ -546,6 +555,7 @@ def main() -> None:
                     max_total_tiles,
                     max_tiles_per_import,
                     fill_color,
+                    one_per_chunk_var.get(),
                 )
             except MapNotFound:
                 root.after(0, lambda: finish_err("No map found for that code."))
