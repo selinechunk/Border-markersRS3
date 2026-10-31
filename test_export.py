@@ -1,6 +1,7 @@
 import base64
 import unittest
 
+from border import grid_to_chunk_id
 from decode import decode_string
 from export import encode_string, pack_tile
 
@@ -90,14 +91,17 @@ class EncodeStringTests(unittest.TestCase):
         self.assertEqual(
             result.labels,
             [
-                f"Chunk ({grid_x}, {grid_y})"
+                f"Chunk {grid_to_chunk_id(grid_x, grid_y)}"
                 for grid_x, grid_y in sorted(
                     {tile[:2] for item in decoded for tile in item.tiles},
                     key=lambda cell: (cell[1], cell[0]),
                 )
             ],
         )
-        self.assertTrue(all(item.name.startswith("BQE_") for item in decoded))
+        self.assertEqual(
+            {item.name for item in decoded},
+            {f"BQE-{grid_to_chunk_id(*cell)}" for cell in {tile[:2] for item in decoded for tile in item.tiles}},
+        )
 
     def test_adding_a_distant_chunk_keeps_existing_import_strings(self):
         from export import export_borders
@@ -114,7 +118,7 @@ class EncodeStringTests(unittest.TestCase):
         result = export_borders([12850], 59, "G", one_per_chunk=True, max_tiles_per_import=50)
 
         self.assertEqual(len(result.strings), 5)
-        self.assertTrue(all(label.startswith("Chunk (") for label in result.labels))
+        self.assertTrue(all(label.startswith("Chunk ") for label in result.labels))
         self.assertEqual(
             [label.rsplit(" ", 1)[-1].rstrip(")") for label in result.labels],
             ["1", "2", "3", "4", "5"],
@@ -127,7 +131,7 @@ class EncodeStringTests(unittest.TestCase):
 
         self.assertIsNone(result["error"])
         self.assertGreater(len(result["strings"]), 1)
-        self.assertTrue(all(label.startswith("Chunk (") for label in result["labels"]))
+        self.assertTrue(all(label.startswith("Chunk ") for label in result["labels"]))
 
     def test_configurable_total_limit_refuses_too_many_tiles(self):
         result = export_borders([12850], 2, "G", max_total_tiles=3)

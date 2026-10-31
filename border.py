@@ -73,6 +73,19 @@ def chunk_id_to_grid(chunk_id: int) -> tuple[int, int]:
     return grid_x, grid_y
 
 
+def grid_to_chunk_id(grid_x: int, grid_y: int) -> int:
+    for (west, south), (east, north), (shift_x, shift_y) in RELOCATED:
+        relocated_west, relocated_south = west + shift_x, south + shift_y
+        relocated_east, relocated_north = east + shift_x, north + shift_y
+        if relocated_west <= grid_x <= relocated_east and relocated_south <= grid_y <= relocated_north:
+            grid_x -= shift_x
+            grid_y -= shift_y
+            break
+    picker_x = grid_x - 29
+    picker_y = 71 - grid_y
+    return STARTING_INDEX + picker_x * STEP - picker_y
+
+
 def marker_positions(count: int, size: int = CHUNK_SIZE) -> list[int]:
     span = size - 1
     return [math.floor(i * span / (count - 1) + 0.5) for i in range(count)]

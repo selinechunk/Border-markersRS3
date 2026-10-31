@@ -2,7 +2,7 @@ import base64
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
-from border import block_border_loops, border_loops
+from border import block_border_loops, border_loops, grid_to_chunk_id
 
 Tile = tuple[int, int, int, int]
 SPLIT = 127
@@ -155,7 +155,11 @@ def export_walk(
         for tile in tiles:
             chunks.setdefault(tile[:2], []).append(tile)
         groups = [
-            (f"{name}_{grid_x}_{grid_y}", f"Chunk ({grid_x}, {grid_y})", chunk_tiles)
+            (
+                f"{name}-{grid_to_chunk_id(grid_x, grid_y)}",
+                f"Chunk {grid_to_chunk_id(grid_x, grid_y)}",
+                chunk_tiles,
+            )
             for (grid_x, grid_y), chunk_tiles in sorted(
                 chunks.items(), key=lambda item: (item[0][1], item[0][0])
             )
@@ -172,7 +176,7 @@ def export_walk(
         ):
             end = min(offset + max_tiles_per_import, len(group_tiles))
             if one_per_chunk:
-                part_name = group_name if part_count == 1 else f"{group_name}_{part_index}"
+                part_name = group_name if part_count == 1 else f"{group_name}-{part_index}"
                 label = (
                     group_label
                     if part_count == 1

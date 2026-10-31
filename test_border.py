@@ -3,7 +3,13 @@ import unittest.mock
 
 import app
 
-from border import border_loops, chunk_id_to_grid, format_borders, marker_positions
+from border import (
+    border_loops,
+    chunk_id_to_grid,
+    format_borders,
+    grid_to_chunk_id,
+    marker_positions,
+)
 
 
 def ids_for(grids):
@@ -25,6 +31,11 @@ class GridTests(unittest.TestCase):
 
     def test_anachronia_offset(self):
         self.assertEqual(chunk_id_to_grid(15683), (85, 37))
+
+    def test_grid_to_chunk_id_reverses_relocated_and_regular_chunks(self):
+        for chunk_id in (7494, 7495, 7750, 7751, 13624, 15683, 17113):
+            with self.subTest(chunk_id=chunk_id):
+                self.assertEqual(grid_to_chunk_id(*chunk_id_to_grid(chunk_id)), chunk_id)
 
     def test_marker_positions(self):
         self.assertEqual(marker_positions(4), [0, 21, 42, 63])
