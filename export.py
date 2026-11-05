@@ -2,12 +2,13 @@ import base64
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
-from border import block_border_loops, border_loops, grid_to_chunk_id
+from border import block_border_loops, border_loops, chunk_id_to_grid, grid_to_chunk_id
 
 Tile = tuple[int, int, int, int]
 SPLIT = 127
 MAX_TILES = 5000
 MAX_IMPORT_TILES = 255
+MAX_MARKER_NAME_LENGTH = 32
 
 
 @dataclass
@@ -127,20 +128,57 @@ def export_walk(
     max_tiles_per_import: int = SPLIT,
     fill_color: str | None = None,
     one_per_chunk: bool = False,
+    whole_chunks_per_import: bool = False,
+    rollable_chunk_ids: Iterable[int] | None = None,
 ) -> ExportResult:
     """Build the import strings for a border walk, easing the marker count if needed."""
+    if one_per_chunk and whole_chunks_per_import:
+        raise ValueError("Choose either one chunk per import or multiple whole chunks per import.")
     if max_total_tiles < 1:
         raise ValueError("Maximum total tiles must be a positive integer.")
     if not 1 <= max_tiles_per_import <= MAX_IMPORT_TILES:
         raise ValueError(f"Maximum tiles per import must be between 1 and {MAX_IMPORT_TILES}.")
-    tiles = walk(count)
+    adjacent_to_rollable: set[tuple[int, int]] | None = None
+    if rollable_chunk_ids is not None:
+        adjacent_to_rollable = set()
+        for chunk_id in rollable_chunk_ids:
+            grid_x, grid_y = chunk_id_to_grid(chunk_id)
+            adjacent_to_rollable.update(
+                {
+                    (grid_x - 1, grid_y),
+                    (grid_x + 1, grid_y),
+                    (grid_x, grid_y - 1),
+                    (grid_x, grid_y + 1),
+                }
+            )
+
+    def filtered_walk(marker_count: int) -> list[Tile]:
+        walked_tiles = walk(marker_count)
+        if adjacent_to_rollable is None:
+            return walked_tiles
+        return [
+            tile
+            for tile in walked_tiles
+            if tile[:2] in adjacent_to_rollable
+        ]
+
+    tiles = filtered_walk(count)
     n = len(tiles)
+    if adjacent_to_rollable is not None and not tiles:
+        return ExportResult(
+            "",
+            "",
+            "",
+            "",
+            "No border markers fall within chunks adjacent to selected rollable chunks.",
+            0,
+        )
     if n > max_total_tiles:
-        if count == 2 or len(walk(2)) > max_total_tiles:
+        if count == 2 or len(filtered_walk(2)) > max_total_tiles:
             return ExportResult("", "", "", "", "That map is too big, sorry.", n)
         suggested = 2
         for candidate in range(2, count):
-            if len(walk(candidate)) <= max_total_tiles:
+            if len(filtered_walk(candidate)) <= max_total_tiles:
                 suggested = candidate
         return ExportResult(
             "",
@@ -150,20 +188,75 @@ def export_walk(
             f"Too many tiles ({n}). Try a marker count of {suggested} or less.",
             n,
         )
-    if one_per_chunk:
+    if one_per_chunk or whole_chunks_per_import:
         chunks: dict[tuple[int, int], list[Tile]] = {}
         for tile in tiles:
             chunks.setdefault(tile[:2], []).append(tile)
-        groups = [
-            (
-                f"{name}-{grid_to_chunk_id(grid_x, grid_y)}",
-                f"Chunk {grid_to_chunk_id(grid_x, grid_y)}",
-                chunk_tiles,
-            )
-            for (grid_x, grid_y), chunk_tiles in sorted(
-                chunks.items(), key=lambda item: (item[0][1], item[0][0])
-            )
-        ]
+        ordered_chunks = sorted(
+            chunks.items(), key=lambda item: (item[0][1], item[0][0])
+        )
+        if one_per_chunk:
+            groups = [
+                (
+                    f"{name}-{grid_to_chunk_id(grid_x, grid_y)}",
+                    f"Chunk {grid_to_chunk_id(grid_x, grid_y)}",
+                    chunk_tiles,
+                )
+                for (grid_x, grid_y), chunk_tiles in ordered_chunks
+            ]
+        else:
+            groups = []
+            batch_tiles: list[Tile] = []
+            batch_chunk_ids: list[int] = []
+
+            def finish_chunk_group() -> None:
+                groups.append(
+                    (
+                        f"{name}-" + "-".join(map(str, batch_chunk_ids)),
+                        f"Chunks {', '.join(map(str, batch_chunk_ids))}",
+                        batch_tiles.copy(),
+                    )
+                )
+
+            for grid, chunk_tiles in ordered_chunks:
+                grid_x, grid_y = grid
+                chunk_id = grid_to_chunk_id(grid_x, grid_y)
+                if len(chunk_tiles) > max_tiles_per_import:
+                    return ExportResult(
+                        "",
+                        "",
+                        "",
+                        "",
+                        f"Chunk {chunk_id} has {len(chunk_tiles)} markers, exceeding "
+                        f"the per-import limit of {max_tiles_per_import}. Increase "
+                        "the limit or lower the marker count.",
+                        n,
+                    )
+                candidate_name = f"{name}-" + "-".join(
+                    map(str, [*batch_chunk_ids, chunk_id])
+                )
+                if batch_tiles and (
+                    len(batch_tiles) + len(chunk_tiles) > max_tiles_per_import
+                    or len(candidate_name) > MAX_MARKER_NAME_LENGTH
+                ):
+                    finish_chunk_group()
+                    batch_tiles = []
+                    batch_chunk_ids = []
+                    candidate_name = f"{name}-{chunk_id}"
+                if len(candidate_name) > MAX_MARKER_NAME_LENGTH:
+                    return ExportResult(
+                        "",
+                        "",
+                        "",
+                        "",
+                        f"Chunk {chunk_id} cannot fit in the {MAX_MARKER_NAME_LENGTH}-character marker title limit. "
+                        "Use a shorter map name.",
+                        n,
+                    )
+                batch_tiles.extend(chunk_tiles)
+                batch_chunk_ids.append(chunk_id)
+            if batch_tiles:
+                finish_chunk_group()
     else:
         groups = [(name, "", tiles)]
 
@@ -182,6 +275,9 @@ def export_walk(
                     if part_count == 1
                     else f"{group_label} (part {part_index})"
                 )
+            elif whole_chunks_per_import:
+                part_name = group_name
+                label = group_label
             else:
                 part_number = len(strings) + 1
                 part_name = name if part_number == 1 else f"{name}{part_number}"
@@ -215,6 +311,8 @@ def export_borders(
     max_tiles_per_import: int = SPLIT,
     fill_color: str | None = None,
     one_per_chunk: bool = False,
+    whole_chunks_per_import: bool = False,
+    rollable_chunk_ids: Iterable[int] | None = None,
 ) -> ExportResult:
     chunk_list = list(chunk_ids)
     return export_walk(
@@ -226,6 +324,8 @@ def export_borders(
         max_tiles_per_import,
         fill_color,
         one_per_chunk,
+        whole_chunks_per_import,
+        rollable_chunk_ids,
     )
 
 

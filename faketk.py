@@ -86,6 +86,11 @@ class Button(Widget):
         self.options["command"]()
 
 
+class Scrollbar(Widget):
+    def set(self, *_args):
+        pass
+
+
 class Checkbutton(Widget):
     def toggle(self):
         variable = self.options["variable"]
@@ -139,8 +144,22 @@ class Canvas(Widget):
     def create_oval(self, *coords, **options):
         return self._add("oval", coords, options)
 
+    def create_window(self, coords, **options):
+        return self._add("window", coords, options)
+
     def itemconfigure(self, key, **options):
         self.items[key].update(options)
+
+    itemconfig = itemconfigure
+
+    def bbox(self, _tag):
+        return 0, 0, 800, 1200
+
+    def yview(self, *_args):
+        pass
+
+    def yview_scroll(self, number, _what):
+        self.scroll_units = getattr(self, "scroll_units", 0) + number
 
     def canvasx(self, value):
         return value
@@ -168,6 +187,7 @@ class Tk(Widget):
         super().__init__(None)
         self.clipboard = ""
         self.ran = False
+        self.all_binds = {}
         instances.append(self)
 
     def record(self, widget):
@@ -175,6 +195,9 @@ class Tk(Widget):
 
     def title(self, _text):
         pass
+
+    def bind_all(self, sequence, func):
+        self.all_binds[sequence] = func
 
     def mainloop(self):
         self.ran = True

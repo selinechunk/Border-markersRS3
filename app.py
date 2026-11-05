@@ -21,6 +21,7 @@ from export import (
 
 MAP_URL = "https://chunkpickerrs3.firebaseio.com/maps/{code}.json?shallow=true"
 UNLOCKED_URL = "https://chunkpickerrs3.firebaseio.com/maps/{code}/chunks/unlocked.json"
+ROLLABLE_URL = "https://chunkpickerrs3.firebaseio.com/maps/{code}/chunks/selected.json"
 
 # The Chunk Picker map covers tiles x 1856-4863 and y 1408-4607, which is this
 # many 150-tile blocks once the grid is anchored on BLOCK_ORIGIN.
@@ -108,6 +109,10 @@ class NoUnlockedChunks(Exception):
     pass
 
 
+class NoRollableChunks(Exception):
+    pass
+
+
 class MapLoadError(Exception):
     pass
 
@@ -151,6 +156,20 @@ def fetch_unlocked_ids(code: str) -> list[int]:
     return sorted(ids)
 
 
+def fetch_rollable_ids(code: str) -> list[int]:
+    quoted = urllib.parse.quote(code, safe="")
+    try:
+        selected = _read_json(ROLLABLE_URL.format(code=quoted))
+    except OSError as error:
+        raise MapLoadError from error
+    if not isinstance(selected, dict):
+        raise NoRollableChunks
+    ids = [int(key) for key in selected if str(key).isdecimal()]
+    if not ids:
+        raise NoRollableChunks
+    return sorted(set(ids))
+
+
 def format_unlocked_chunks(chunk_ids: list[int], delimiter: str = " ") -> str:
     return delimiter.join(str(chunk_id) for chunk_id in sorted(set(chunk_ids)))
 
@@ -161,6 +180,38 @@ def main() -> None:
 
     root = tk.Tk()
     root.title("Border markers")
+
+    scroll_canvas = tk.Canvas(root, highlightthickness=0)
+    scroll_canvas.pack(side="left", fill="both", expand=True)
+    scrollbar = tk.Scrollbar(root, orient="vertical", command=scroll_canvas.yview)
+    scrollbar.pack(side="right", fill="y")
+    scroll_canvas.configure(yscrollcommand=scrollbar.set)
+    content = tk.Frame(scroll_canvas)
+    content_window = scroll_canvas.create_window((0, 0), window=content, anchor="nw")
+
+    def update_scroll_region(_event=None) -> None:
+        scroll_canvas.configure(scrollregion=scroll_canvas.bbox("all"))
+
+    def resize_content(event) -> None:
+        scroll_canvas.itemconfigure(content_window, width=event.width)
+
+    def scroll_with_wheel(event):
+        if getattr(event, "num", None) == 4:
+            amount = -1
+        elif getattr(event, "num", None) == 5:
+            amount = 1
+        else:
+            amount = -int(event.delta / 120)
+            if amount == 0:
+                amount = -1 if event.delta > 0 else 1
+        scroll_canvas.yview_scroll(amount, "units")
+        return "break"
+
+    content.bind("<Configure>", update_scroll_region)
+    scroll_canvas.bind("<Configure>", resize_content)
+    root.bind_all("<MouseWheel>", scroll_with_wheel)
+    root.bind_all("<Button-4>", scroll_with_wheel)
+    root.bind_all("<Button-5>", scroll_with_wheel)
 
     code_var = tk.StringVar()
     count_var = tk.StringVar(value="4")
@@ -174,8 +225,10 @@ def main() -> None:
     max_total_var = tk.StringVar(value=str(MAX_TILES))
     max_per_import_var = tk.StringVar(value=str(SPLIT))
     one_per_chunk_var = tk.BooleanVar(value=False)
+    whole_chunks_per_import_var = tk.BooleanVar(value=False)
+    only_rollable_chunks_var = tk.BooleanVar(value=False)
 
-    form = tk.Frame(root, padx=12, pady=12)
+    form = tk.Frame(content, padx=12, pady=12)
     form.pack(fill="x")
     enklumpman_check = tk.Checkbutton(
         form, text="Enklumpman mode (150-tile blocks)", variable=enklumpman_var
@@ -237,6 +290,18 @@ def main() -> None:
         variable=one_per_chunk_var,
     )
     one_per_chunk_check.grid(row=3, column=0, columnspan=2, sticky="w")
+    whole_chunks_per_import_check = tk.Checkbutton(
+        config_panel,
+        text="Pack whole Border chunks into each import string",
+        variable=whole_chunks_per_import_var,
+    )
+    whole_chunks_per_import_check.grid(row=4, column=0, columnspan=2, sticky="w")
+    only_rollable_chunks_check = tk.Checkbutton(
+        config_panel,
+        text="Only generate borders in chunks adjacent to rollable chunks",
+        variable=only_rollable_chunks_var,
+    )
+    only_rollable_chunks_check.grid(row=5, column=0, columnspan=2, sticky="w")
     config_panel.grid_remove()
     config_open = {"value": False}
 
@@ -257,7 +322,7 @@ def main() -> None:
     first_label_var = tk.StringVar()
     second_label_var = tk.StringVar()
 
-    strings = tk.Frame(root, padx=12)
+    strings = tk.Frame(content, padx=12)
     strings.pack(fill="both", expand=True)
     tk.Label(strings, textvariable=first_label_var, anchor="w").pack(fill="x")
     first_box = tk.Text(strings, width=40, height=6, wrap="char", state="disabled")
@@ -286,7 +351,7 @@ def main() -> None:
     blocks_var = tk.StringVar(value=format_blocks(selected))
     hover_var = tk.StringVar(value="Click or drag to mark the blocks you have.")
 
-    grid_frame = tk.Frame(root, padx=12)
+    grid_frame = tk.Frame(content, padx=12)
     canvas = tk.Canvas(
         grid_frame,
         width=CELL * len(columns),
@@ -421,15 +486,40 @@ def main() -> None:
             count_label_var.set("Markers per block edge")
             copy_chunks.configure(state="disabled")
             one_per_chunk_check.configure(state="disabled")
+            whole_chunks_per_import_check.configure(state="disabled")
+            only_rollable_chunks_check.configure(state="disabled")
+            only_rollable_chunks_check.grid_remove()
+            whole_chunks_per_import_check.grid_remove()
             grid_frame.pack(fill="x", pady=(0, 12), before=strings)
         else:
             code_label_var.set("Map code")
             count_label_var.set("Markers per 64 tiles")
             copy_chunks.configure(state="normal")
             one_per_chunk_check.configure(state="normal")
+            whole_chunks_per_import_check.configure(state="normal")
+            only_rollable_chunks_check.configure(state="normal")
+            whole_chunks_per_import_check.grid(
+                row=4, column=0, columnspan=2, sticky="w"
+            )
+            only_rollable_chunks_check.grid(
+                row=5, column=0, columnspan=2, sticky="w"
+            )
             grid_frame.pack_forget()
 
     enklumpman_check.configure(command=on_mode_change)
+
+    def on_chunk_grouping_change(selected: str) -> None:
+        if selected == "one_per_chunk" and one_per_chunk_var.get():
+            whole_chunks_per_import_var.set(False)
+        elif selected == "whole_chunks" and whole_chunks_per_import_var.get():
+            one_per_chunk_var.set(False)
+
+    one_per_chunk_check.configure(
+        command=lambda: on_chunk_grouping_change("one_per_chunk")
+    )
+    whole_chunks_per_import_check.configure(
+        command=lambda: on_chunk_grouping_change("whole_chunks")
+    )
 
     def on_choose_color(variable, swatch, title: str) -> None:
         _rgb, selected = colorchooser.askcolor(color=variable.get(), title=title)
@@ -547,6 +637,11 @@ def main() -> None:
             try:
                 ids = fetch_unlocked_ids(trimmed.lower())
                 chunk_text = ids
+                rollable_ids = (
+                    fetch_rollable_ids(trimmed.lower())
+                    if only_rollable_chunks_var.get()
+                    else None
+                )
                 result = export_borders(
                     ids,
                     int(count_text.strip()),
@@ -556,12 +651,22 @@ def main() -> None:
                     max_tiles_per_import,
                     fill_color,
                     one_per_chunk_var.get(),
+                    whole_chunks_per_import_var.get(),
+                    rollable_ids,
                 )
             except MapNotFound:
                 root.after(0, lambda: finish_err("No map found for that code."))
                 return
             except NoUnlockedChunks:
                 root.after(0, lambda: finish_err("That map has no unlocked chunks."))
+                return
+            except NoRollableChunks:
+                root.after(
+                    0,
+                    lambda: finish_err(
+                        "That map has no selected rollable chunks."
+                    ),
+                )
                 return
             except MapLoadError:
                 root.after(0, lambda: finish_err("Could not load the map."))

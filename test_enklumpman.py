@@ -131,12 +131,50 @@ class Window:
             if getattr(widget, "_config_panel", False)
         )
         self.boxes = self.root.of_type(faketk.Text)
-        self.canvas = self.root.of_type(faketk.Canvas)[0]
+        self.canvas = next(
+            canvas
+            for canvas in self.root.of_type(faketk.Canvas)
+            if canvas.options.get("cursor") == "hand2"
+        )
+        self.scroll_canvas = next(
+            canvas
+            for canvas in self.root.of_type(faketk.Canvas)
+            if canvas is not self.canvas
+        )
         self.check = self.root.of_type(faketk.Checkbutton)[0]
         self.one_per_chunk = next(
             widget.options["variable"]
             for widget in self.root.of_type(faketk.Checkbutton)
             if widget.options.get("text") == "One import string per Border chunk"
+        )
+        self.one_per_chunk_check = next(
+            widget
+            for widget in self.root.of_type(faketk.Checkbutton)
+            if widget.options.get("text") == "One import string per Border chunk"
+        )
+        self.whole_chunks_per_import = next(
+            widget.options["variable"]
+            for widget in self.root.of_type(faketk.Checkbutton)
+            if widget.options.get("text")
+            == "Pack whole Border chunks into each import string"
+        )
+        self.whole_chunks_per_import_check = next(
+            widget
+            for widget in self.root.of_type(faketk.Checkbutton)
+            if widget.options.get("text")
+            == "Pack whole Border chunks into each import string"
+        )
+        self.only_rollable_chunks = next(
+            widget.options["variable"]
+            for widget in self.root.of_type(faketk.Checkbutton)
+            if widget.options.get("text")
+            == "Only generate borders in chunks adjacent to rollable chunks"
+        )
+        self.only_rollable_chunks_check = next(
+            widget
+            for widget in self.root.of_type(faketk.Checkbutton)
+            if widget.options.get("text")
+            == "Only generate borders in chunks adjacent to rollable chunks"
         )
         self.grid_frame = self.canvas.master
 
@@ -160,6 +198,18 @@ class Window:
 
 
 class WindowTests(unittest.TestCase):
+    def test_mouse_wheel_scrolls_desktop_window_on_windows_and_linux(self):
+        window = Window()
+        mouse_wheel = window.root.all_binds["<MouseWheel>"]
+        linux_up = window.root.all_binds["<Button-4>"]
+        linux_down = window.root.all_binds["<Button-5>"]
+
+        self.assertEqual(mouse_wheel(type("WheelEvent", (), {"delta": -120})()), "break")
+        linux_up(type("WheelEvent", (), {"num": 4})())
+        linux_down(type("WheelEvent", (), {"num": 5})())
+
+        self.assertEqual(window.scroll_canvas.scroll_units, 1)
+
     def test_config_button_toggles_settings(self):
         window = Window()
         self.assertFalse(window.config_panel.visible)
@@ -182,8 +232,12 @@ class WindowTests(unittest.TestCase):
         self.assertTrue(window.grid_frame.visible)
         self.assertEqual(window.code_label.get(), "Marker name")
         self.assertEqual(window.count_label.get(), "Markers per block edge")
+        self.assertFalse(window.whole_chunks_per_import_check.visible)
+        self.assertFalse(window.only_rollable_chunks_check.visible)
         window.check.toggle()
         self.assertFalse(window.grid_frame.visible)
+        self.assertTrue(window.whole_chunks_per_import_check.visible)
+        self.assertTrue(window.only_rollable_chunks_check.visible)
 
     def test_start_block_is_coloured_and_cannot_be_cleared(self):
         window = Window()
@@ -381,6 +435,68 @@ class WindowTests(unittest.TestCase):
 
         outputs = [box.content for box in window.root.of_type(faketk.Text) if box.content.startswith("TM2")]
         self.assertGreater(len(outputs), 1)
+
+    def test_chunk_grouping_options_are_mutually_exclusive(self):
+        window = Window()
+        window.one_per_chunk_check.toggle()
+        self.assertTrue(window.one_per_chunk.get())
+        window.whole_chunks_per_import_check.toggle()
+        self.assertFalse(window.one_per_chunk.get())
+        self.assertTrue(window.whole_chunks_per_import.get())
+
+    def test_desktop_can_generate_multiple_whole_chunks_per_import(self):
+        window = Window()
+        window.whole_chunks_per_import.set(True)
+
+        class ImmediateThread:
+            def __init__(self, target, daemon):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        with unittest.mock.patch("app.fetch_unlocked_ids", return_value=[12850, 12594]):
+            with unittest.mock.patch("app.threading.Thread", ImmediateThread):
+                window.code.set("BQE")
+                window.root.button("Generate").invoke()
+
+        outputs = [
+            box.content
+            for box in window.root.of_type(faketk.Text)
+            if box.content.startswith("TM2")
+        ]
+        decoded = [decode_string(text) for text in outputs]
+        self.assertTrue(outputs)
+        self.assertTrue(all(len(item.tiles) <= 127 for item in decoded))
+        self.assertTrue(any(len({tile[:2] for tile in item.tiles}) > 1 for item in decoded))
+
+    def test_desktop_applies_rollable_chunk_filter(self):
+        window = Window()
+        window.only_rollable_chunks.set(True)
+
+        class ImmediateThread:
+            def __init__(self, target, daemon):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        with unittest.mock.patch("app.fetch_unlocked_ids", return_value=[12850, 12594]):
+            with unittest.mock.patch("app.fetch_rollable_ids", return_value=[12850]) as fetch:
+                with unittest.mock.patch("app.threading.Thread", ImmediateThread):
+                    window.code.set("BQE")
+                    window.root.button("Generate").invoke()
+
+        fetch.assert_called_once_with("bqe")
+        outputs = [
+            decode_string(box.content)
+            for box in window.root.of_type(faketk.Text)
+            if box.content.startswith("TM2")
+        ]
+        self.assertTrue(outputs)
+        self.assertTrue(
+            all({tile[:2] for tile in item.tiles} == {(49, 50)} for item in outputs)
+        )
 
     def test_configured_total_tile_limit_is_applied(self):
         window = Window()

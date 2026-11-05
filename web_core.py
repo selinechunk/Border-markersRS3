@@ -16,6 +16,8 @@ def generate_chunks(
     max_tiles_per_import: int = SPLIT,
     fill_color: str | None = None,
     one_per_chunk: bool = False,
+    whole_chunks_per_import: bool = False,
+    rollable_chunk_ids: list[int] | None = None,
 ) -> dict:
     result = export_borders(
         chunk_ids,
@@ -26,6 +28,8 @@ def generate_chunks(
         max_tiles_per_import,
         fill_color,
         one_per_chunk,
+        whole_chunks_per_import,
+        rollable_chunk_ids,
     )
     return {
         "first": result.first,

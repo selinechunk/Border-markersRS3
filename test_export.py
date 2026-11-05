@@ -3,7 +3,7 @@ import unittest
 
 from border import grid_to_chunk_id
 from decode import decode_string
-from export import encode_string, pack_tile
+from export import encode_string, export_walk, pack_tile
 
 
 def decode_body(text):
@@ -123,6 +123,202 @@ class EncodeStringTests(unittest.TestCase):
             [label.rsplit(" ", 1)[-1].rstrip(")") for label in result.labels],
             ["1", "2", "3", "4", "5"],
         )
+
+    def test_multiple_whole_chunks_fit_in_one_import_string(self):
+        tiles = [
+            (40 + chunk_index, 50, local_x, 0)
+            for chunk_index in range(12)
+            for local_x in range(10)
+        ]
+        result = export_walk(
+            lambda _count: tiles,
+            4,
+            "G",
+            max_tiles_per_import=127,
+            whole_chunks_per_import=True,
+        )
+        self.assertIsNone(result.error)
+        chunk_ids = [
+            grid_to_chunk_id(40 + chunk_index, 50)
+            for chunk_index in range(12)
+        ]
+        decoded_strings = [decode_string(text) for text in result.strings]
+        self.assertEqual(
+            sum(len(item.tiles) for item in decoded_strings), 120
+        )
+        self.assertGreater(len(result.strings), 1)
+        self.assertTrue(all(len(item.name) <= 32 for item in decoded_strings))
+        self.assertTrue(
+            all(
+                len({tile[:2] for tile in item.tiles}) > 1
+                for item in decoded_strings
+            )
+        )
+        self.assertEqual(
+            {
+                chunk_id
+                for item in decoded_strings
+                for chunk_id in map(
+                    lambda grid: grid_to_chunk_id(*grid),
+                    {tile[:2] for tile in item.tiles},
+                )
+            },
+            set(chunk_ids),
+        )
+        for label, item in zip(result.labels, decoded_strings):
+            ids = [
+                str(grid_to_chunk_id(*grid))
+                for grid in sorted(
+                    {tile[:2] for tile in item.tiles},
+                    key=lambda cell: (cell[1], cell[0]),
+                )
+            ]
+            self.assertEqual(label, f"Chunks {', '.join(ids)}")
+            self.assertEqual(item.name, f"G-{'-'.join(ids)}")
+
+    def test_whole_chunk_title_limit_requires_a_shorter_map_name(self):
+        result = export_walk(
+            lambda _count: [(40, 50, 0, 0)],
+            4,
+            "X" * 27,
+            whole_chunks_per_import=True,
+        )
+
+        self.assertEqual(
+            result.error,
+            "Chunk 10290 cannot fit in the 32-character marker title limit. "
+            "Use a shorter map name.",
+        )
+
+    def test_whole_chunk_groups_obey_the_import_limit_without_splitting(self):
+        tiles = [
+            (40 + chunk_index, 50, local_x, 0)
+            for chunk_index in range(5)
+            for local_x in range(10)
+        ]
+        result = export_walk(
+            lambda _count: tiles,
+            4,
+            "G",
+            max_tiles_per_import=25,
+            whole_chunks_per_import=True,
+        )
+        decoded = [decode_string(text) for text in result.strings]
+
+        self.assertIsNone(result.error)
+        self.assertEqual([len(item.tiles) for item in decoded], [20, 20, 10])
+        self.assertTrue(all(len(item.tiles) <= 25 for item in decoded))
+        self.assertTrue(
+            all(
+                len({tile[:2] for tile in item.tiles}) == len(item.tiles) // 10
+                for item in decoded
+            )
+        )
+        chunk_ids = [grid_to_chunk_id(40 + chunk_index, 50) for chunk_index in range(5)]
+        self.assertEqual(
+            result.labels,
+            [
+                f"Chunks {chunk_ids[0]}, {chunk_ids[1]}",
+                f"Chunks {chunk_ids[2]}, {chunk_ids[3]}",
+                f"Chunks {chunk_ids[4]}",
+            ],
+        )
+        self.assertEqual(
+            [item.name for item in decoded],
+            [
+                f"G-{chunk_ids[0]}-{chunk_ids[1]}",
+                f"G-{chunk_ids[2]}-{chunk_ids[3]}",
+                f"G-{chunk_ids[4]}",
+            ],
+        )
+
+    def test_whole_chunk_mode_reports_a_chunk_larger_than_the_import_limit(self):
+        tiles = [(40, 50, local_x, 0) for local_x in range(10)]
+        result = export_walk(
+            lambda _count: tiles,
+            4,
+            "G",
+            max_tiles_per_import=9,
+            whole_chunks_per_import=True,
+        )
+
+        self.assertEqual(
+            result.error,
+            "Chunk 10290 has 10 markers, exceeding the per-import limit of 9. "
+            "Increase the limit or lower the marker count.",
+        )
+        self.assertEqual(result.strings, [])
+
+    def test_web_bridge_supports_multiple_whole_chunks_per_import(self):
+        from web_core import generate_chunks
+
+        result = generate_chunks(
+            [12850, 12594], 4, "BQE", whole_chunks_per_import=True
+        )
+
+        self.assertIsNone(result["error"])
+        self.assertTrue(all(label.startswith("Chunks ") for label in result["labels"]))
+        decoded = [decode_string(text) for text in result["strings"]]
+        self.assertTrue(all(len(item.tiles) <= 127 for item in decoded))
+        self.assertTrue(
+            any(len({tile[:2] for tile in item.tiles}) > 1 for item in decoded)
+        )
+        for label, item in zip(result["labels"], decoded):
+            ids = [
+                str(grid_to_chunk_id(grid_x, grid_y))
+                for grid_x, grid_y in sorted(
+                    {tile[:2] for tile in item.tiles},
+                    key=lambda cell: (cell[1], cell[0]),
+                )
+            ]
+            self.assertEqual(label, f"Chunks {', '.join(ids)}")
+            self.assertEqual(item.name, f"BQE-{'-'.join(ids)}")
+
+    def test_rollable_chunk_filter_keeps_only_adjacent_chunk_markers(self):
+        grids = [(50, 50), (49, 50), (50, 51), (49, 51)]
+        chunk_ids = ids_for(grids)
+        selected_id = ids_for([(50, 50)])[0]
+        complete = export_borders(chunk_ids, 4, "MAP")
+        filtered = export_borders(
+            chunk_ids, 4, "MAP", rollable_chunk_ids=[selected_id]
+        )
+        filtered_tiles = {
+            tile
+            for text in filtered.strings
+            for tile in decode_string(text).tiles
+        }
+
+        self.assertIsNone(filtered.error)
+        self.assertLess(filtered.tile_count, complete.tile_count)
+        self.assertTrue(filtered_tiles)
+        self.assertEqual(
+            {tile[:2] for tile in filtered_tiles}, {(49, 50), (50, 51)}
+        )
+
+    def test_rollable_chunk_filter_reports_when_no_border_hits_selected_chunks(self):
+        result = export_borders([12850], 4, "MAP", rollable_chunk_ids=[])
+
+        self.assertEqual(
+            result.error,
+            "No border markers fall within chunks adjacent to selected rollable chunks.",
+        )
+        self.assertEqual(result.tile_count, 0)
+        self.assertEqual(result.strings, [])
+
+    def test_web_bridge_supports_rollable_chunk_filter(self):
+        from web_core import generate_chunks
+
+        result = generate_chunks(
+            [12850, 12594],
+            4,
+            "BQE",
+            rollable_chunk_ids=[12850],
+        )
+        decoded = [decode_string(text) for text in result["strings"]]
+
+        self.assertIsNone(result["error"])
+        self.assertTrue(decoded)
+        self.assertTrue(all({tile[:2] for tile in item.tiles} == {(49, 50)} for item in decoded))
 
     def test_web_bridge_supports_per_chunk_imports(self):
         from web_core import generate_chunks

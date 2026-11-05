@@ -194,6 +194,24 @@ class AppHelperTests(unittest.TestCase):
         with unittest.mock.patch("app._read_json", side_effect=[{"chunks": True}, payload]):
             self.assertEqual(app.fetch_unlocked_ids("bqe"), [13624, 13882])
 
+    def test_rollable_ids_are_loaded_from_selected_chunks(self):
+        payload = {"8493": 58, "8749": 57, "note": "x"}
+        with unittest.mock.patch("app._read_json", return_value=payload) as read_json:
+            self.assertEqual(app.fetch_rollable_ids("eoc"), [8493, 8749])
+        read_json.assert_called_once_with(
+            app.ROLLABLE_URL.format(code="eoc")
+        )
+
+    def test_missing_rollable_chunks_are_reported(self):
+        with unittest.mock.patch("app._read_json", return_value=None):
+            with self.assertRaises(app.NoRollableChunks):
+                app.fetch_rollable_ids("eoc")
+
+    def test_rollable_chunks_network_failure_is_reported(self):
+        with unittest.mock.patch("app._read_json", side_effect=OSError("offline")):
+            with self.assertRaises(app.MapLoadError):
+                app.fetch_rollable_ids("eoc")
+
     def test_network_failure(self):
         with unittest.mock.patch("app._read_json", side_effect=OSError("offline")):
             with self.assertRaises(app.MapLoadError):

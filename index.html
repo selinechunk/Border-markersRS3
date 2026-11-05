@@ -175,6 +175,8 @@
           <div class="config-field"><label for="max-total-tiles">Maximum total tiles</label><input id="max-total-tiles" type="number" min="1" step="1" value="5000"></div>
           <div class="config-field"><label for="max-per-import">Maximum tiles per import</label><input id="max-per-import" type="number" min="1" max="255" step="1" value="127"></div>
           <div class="config-field" id="one-per-chunk-field"><label for="one-per-chunk">One import string per Border chunk</label><input id="one-per-chunk" type="checkbox"></div>
+          <div class="config-field" id="whole-chunks-field"><label for="whole-chunks">Pack whole Border chunks into each import string</label><input id="whole-chunks" type="checkbox"></div>
+          <div class="config-field" id="rollable-chunks-field"><label for="rollable-chunks">Only generate borders in chunks adjacent to rollable chunks</label><input id="rollable-chunks" type="checkbox"></div>
         </div>
         <p class="status" id="status" role="status" aria-live="polite">Ready. Enter a map code to begin.</p>
         <div class="block-tools" id="block-tools" hidden>
@@ -345,11 +347,19 @@
       $("#block-tools").hidden = mapMode;
       $("#chunk-copy-row").hidden = !mapMode;
       $("#one-per-chunk-field").hidden = !mapMode;
+      $("#whole-chunks-field").hidden = !mapMode;
+      $("#rollable-chunks-field").hidden = !mapMode;
       $("#generate").textContent = mapMode ? "Generate border" : "Generate block border";
       if (!mapMode) $("#hover-readout").textContent = "Click or drag to mark the blocks you have.";
     }
     $("#map-tab").addEventListener("click", () => setMode("map"));
     $("#blocks-tab").addEventListener("click", () => setMode("blocks"));
+    $("#one-per-chunk").addEventListener("change", (event) => {
+      if (event.target.checked) $("#whole-chunks").checked = false;
+    });
+    $("#whole-chunks").addEventListener("change", (event) => {
+      if (event.target.checked) $("#one-per-chunk").checked = false;
+    });
 
     $("#apply-blocks").addEventListener("click", () => {
       const text = $("#block-list").value;
@@ -436,6 +446,19 @@
       return ids.sort((a, b) => a - b);
     }
 
+    async function fetchRollableChunks(code) {
+      const safeCode = encodeURIComponent(code.trim().toLowerCase());
+      const response = await fetch(`${mapUrl}${safeCode}/chunks/selected.json`);
+      if (!response.ok) throw new Error("Could not load the map's selected rollable chunks.");
+      const selected = await response.json();
+      if (!selected || typeof selected !== "object" || Array.isArray(selected)) {
+        throw new Error("That map has no selected rollable chunks.");
+      }
+      const ids = Object.keys(selected).filter((key) => /^\d+$/.test(key)).map(Number);
+      if (!ids.length) throw new Error("That map has no selected rollable chunks.");
+      return [...new Set(ids)];
+    }
+
     function renderResult(result) {
       const strings = result.strings || [result.first, result.second].filter(Boolean);
       const labels = result.labels || [result.first_label, result.second_label].filter(Boolean);
@@ -510,11 +533,14 @@
         if (activeMode === "map") {
           showStatus("Loading unlocked chunks...");
           const ids = await fetchUnlockedChunks(name);
+          const rollableIds = $("#rollable-chunks").checked
+            ? await fetchRollableChunks(name)
+            : null;
           const delimiter = { space: " ", comma: ",", newline: "\n", tab: "\t" }[$("#chunk-delimiter").value];
           chunkText = await callPython("format_unlocked_chunks", [ids, delimiter]);
           copyChunksButton.disabled = !chunkText;
           showStatus("Tracing the border...");
-          result = await callPython("generate_chunks", [ids, count, name.toUpperCase(), markerColor.value, maxTotalTiles, maxTilesPerImport, markerFillColor.value, $("#one-per-chunk").checked]);
+          result = await callPython("generate_chunks", [ids, count, name.toUpperCase(), markerColor.value, maxTotalTiles, maxTilesPerImport, markerFillColor.value, $("#one-per-chunk").checked, $("#whole-chunks").checked, rollableIds]);
         } else {
           const blocks = [...selectedBlocks].map((key) => key.split(",").map(Number));
           result = await callPython("generate_blocks", [blocks, count, name.trim().toUpperCase() || "ENKLUMPMAN", markerColor.value, maxTotalTiles, maxTilesPerImport, markerFillColor.value]);

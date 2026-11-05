@@ -69,6 +69,17 @@ You can also select **One import string per Border chunk**. Each string is named
 grouped by the chunk ID it contains (for example, `BQE-12850`), making it easier to replace
 only the strings affected when the map changes. A chunk whose markers exceed the per-import
 limit is split into multiple strings with a numeric suffix (for example, `BQE-12850-2`).
+Alternatively, select **Pack whole Border chunks into each import string** to fit as many
+complete chunk borders as possible under the per-import limit. This never splits a chunk;
+if one chunk by itself exceeds the limit, generation reports an error so you can raise the
+limit or lower the marker count. The generated marker titles and output labels list the
+chunk IDs in each string. Titles respect the marker app's 32-character limit, so this may
+split the chunks across more strings than the tile limit alone would require. The two chunk
+options are mutually exclusive. You can also select **Only generate borders in chunks
+adjacent to rollable chunks** to keep the normal border markers only in unlocked chunks
+sharing an edge with chunks listed under the map's selected roll order (for example, EOC's
+numbered chunks). Rollable chunks themselves and diagonal neighbors are not included. This
+option requires the map to provide selected-chunk data.
 
 If a second box fills in as well, paste that one too. Your border was too long for one
 string, so it was split in two.
